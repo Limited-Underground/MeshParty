@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>MeshParty Privacy Policy | Limited Underground</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, sans-serif;
+      background: #f5f7f6;
+      color: #142723;
+      --secondary-text: #48615a;
+      --heading-rule: #9fbfb3;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        background: #121c19;
+        color: #e5f1ed;
+        --secondary-text: #c0d3ca;
+        --heading-rule: #4d7c6b;
+      }
+    }
+    body { margin: 0; }
+    main { box-sizing: border-box; max-width: 46rem; margin: auto; padding: 2rem 1.25rem 3rem; }
+    header { padding-block-end: 1.25rem; border-block-end: 1px solid var(--heading-rule); }
+    h1 { margin: 0.2em 0; font-size: 2rem; line-height: 1.15; }
+    h2 { margin: 1.6em 0 0.45em; font-size: 1.25rem; line-height: 1.3; }
+    p, li { line-height: 1.6; }
+    p, ul { margin: 0.65em 0; }
+    ul { padding-inline-start: 1.25rem; }
+    li + li { margin-block-start: 0.35em; }
+    .publisher, .date { color: var(--secondary-text); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="publisher">Limited Underground</p>
+      <h1>MeshParty Privacy Policy</h1>
+      <p class="date">Effective November 19, 2026</p>
+    </header>
+
+    <p>MeshParty is an Android app from Limited Underground for messaging with your own MeshCore and Meshtastic companion radios. Radio messaging works without a MeshParty account or an internet connection. Sending an abuse report in the app uses an internet connection to reach Limited Underground. The app contains no advertising or analytics, and it does not send automatic crash reports to Limited Underground.</p>
+
+    <h2>Bluetooth and radio information</h2>
+    <p>MeshParty uses Android’s Nearby devices permission to find, identify, and connect to radios over Bluetooth Low Energy. It uses Bluetooth device names and addresses to show available devices and identify your selected radios. MeshParty reads the connected radio’s contact and channel information, such as names and addressing identifiers, to display destinations and route messages. It does not request location permission or use Bluetooth to derive your physical location.</p>
+    <p>MeshParty can maintain the Bluetooth connections while you use another app or lock your screen. You can disconnect each radio from the Radios screen, or use the connection notification to disconnect both when that notification is available.</p>
+
+    <h2>Messages and local storage</h2>
+    <p>MeshParty displays messages received from your connected radios. Android’s app-private storage holds up to 300 recent messages across both networks. Records include the message text, sending or receiving network, sender name or identifier, timestamp, direction, associated radio address, and destination details when available. Android also stores your app preferences locally.</p>
+    <p>When you choose a destination and send a message, MeshParty transmits the text and the necessary destination information over Bluetooth to the selected radio. The radio sends it over its mesh according to its firmware and channel settings. The audience and protection of a message depend on which contact or channel you choose and how that network is configured. Limited Underground receives message text only if you choose to share it, such as in an abuse report.</p>
+
+    <h2>Chat safety and abuse reports</h2>
+    <p>MeshParty stores the version of the chat rules you accepted on your phone. When you block an identifiable sender, the app stores the mesh network, sender ID, and display label on your phone so it can hide matching incoming messages and alerts and remove the sender from your available destinations. MeshCore channel messages provide a display name. When you block a name, the app stores the name, channel label and slot, and associated radio address locally. It uses the name on that radio and channel to hide matching incoming messages and alerts. Channel mutes also apply on that phone. You can undo blocks and mutes in <strong>Settings → Chat safety</strong>.</p>
+    <p>When you report a message or a sender, MeshParty shows the information that will go to Limited Underground. A message report includes the selected message text. A sender report includes the mesh sender ID or the displayed MeshCore channel sender name. You can choose whether to include the corresponding sender information or message text as extra context. When you tap <strong>Send report</strong>, the app sends the reviewed information, report type, reason, mesh network, and a random receipt ID over HTTPS. Reports are sent only when you confirm them.</p>
+    <p>Limited Underground uses abuse reports to review suspected violations and take action within its control. Cloudflare hosts the reporting service and processes connection information, including your IP address, to deliver reports and limit abuse. The review database does not store your IP address. The report form does not attach Bluetooth addresses, private keys, unrelated messages, or diagnostic files. Reports expire after 30 days and are removed from the review database by a daily cleanup. Copies may stay in Cloudflare’s rolling backups for up to 30 more days. To request early deletion, contact us using the email below and include the report receipt if available.</p>
+
+    <h2>Notifications</h2>
+    <p>If you enable message notifications, MeshParty can show the sender and message text in an Android notification. What appears on your lock screen depends on your Android notification settings. You can adjust alerts for each network in MeshParty or manage the app’s notifications in Android Settings.</p>
+
+    <h2>Support diagnostics</h2>
+    <p>MeshParty keeps up to 200 recent diagnostic events in app-private storage on your phone, including across app restarts. These events help troubleshoot app startup, Bluetooth connections, reconnects, and message handling. They describe elapsed time within an app session, the radio network, and technical stages, outcomes, and codes. The export also shows the MeshParty version and build number and the Android API level. Diagnostics exclude message text, contact and channel details, radio names and addresses, device identifiers, PINs, keys, raw radio traffic, and Android system logs.</p>
+    <p>To export a plain-text file, open <strong>Settings → Diagnostics → Export diagnostics</strong> and choose a local or cloud storage location in Android’s save dialog. MeshParty never uploads these diagnostics automatically. You decide whether to share a copy and who receives it. If you send one to Limited Underground, we use it to help respond to your support request. You can request deletion of a file you sent us through the privacy contact below.</p>
+
+    <h2>Retention and deletion</h2>
+    <p>New records replace older ones once the local limits of 300 messages or 200 diagnostic events are reached. MeshParty excludes its saved messages, diagnostics, and preferences from Android cloud backup and device-to-device transfer.</p>
+    <p>Use <strong>Settings → Diagnostics → Clear diagnostics</strong> to delete the events saved by MeshParty. To delete all of MeshParty’s saved messages, diagnostics, and settings, open <strong>Android Settings → Apps → MeshParty → Storage</strong> and clear the app’s data, or uninstall MeshParty. Delete any exported diagnostic files separately from the locations you selected. Copies held by a radio or other people on the mesh are outside the app’s control.</p>
+
+    <h2>Privacy contact</h2>
+    <p>For privacy questions or requests, email Limited Underground at <a href="mailto:admin@limitedunderground.com">admin@limitedunderground.com</a>. The MeshParty listing on Google Play also shows the current <strong>App support</strong> contact.</p>
+  </main>
+</body>
+</html>

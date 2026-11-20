@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application' version '8.10.1'
+}
+
+def reportUrl = providers.gradleProperty('meshPartyReportUrl').orElse('').get()
+def reportEndpoint = reportUrl.isEmpty() ? null : new URI(reportUrl)
+def loopbackReports = reportEndpoint?.scheme == 'http' && reportEndpoint?.host == '127.0.0.1'
+if (reportEndpoint != null && (
+        (reportEndpoint.scheme != 'https' && !loopbackReports)
+        || reportEndpoint.host == null
+        || reportEndpoint.rawPath != '/v1/reports'
+        || reportEndpoint.rawUserInfo != null
+        || reportEndpoint.rawQuery != null
+        || reportEndpoint.rawFragment != null
+        || reportEndpoint.port == 0
+        || reportEndpoint.port > 65535)) {
+    throw new GradleException('meshPartyReportUrl must be an HTTPS /v1/reports URL or a debug loopback URL')
+}
+
+android {
+    namespace 'com.limitedunderground.meshinbox'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.limitedunderground.meshparty'
+        minSdk 31
+        targetSdk 36
+        versionCode 6
+        versionName '0.1.5'
+        buildConfigField 'String', 'ABUSE_REPORT_URL', groovy.json.JsonOutput.toJson(loopbackReports ? '' : reportUrl)
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            if (loopbackReports) {
+                buildConfigField 'String', 'ABUSE_REPORT_URL', groovy.json.JsonOutput.toJson(reportUrl)
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

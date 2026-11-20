@@ -1,0 +1,28 @@
+.gradle/
+.gradle-user/
+.android-user/
+.idea/
+.vscode/
+*.iml
+local.properties
+build/
+node_modules/
+
+# Local configuration and credentials
+/report-service/wrangler.jsonc
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+
+# Signing material and the local Play signing helper
+*.jks
+*.p12
+*.keystore
+*.dpapi
+*.pem
+*.key
+*.pfx
+*.pkcs12
+signing/
+/tools/sign-play-bundle.ps1

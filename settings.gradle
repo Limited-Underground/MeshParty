@@ -1,0 +1,30 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'MeshParty'
+include ':app'
+
+def buildRoot = providers.gradleProperty('meshPartyBuildRoot').orNull
+if (buildRoot != null) {
+    def outputRoot = new File(buildRoot)
+    if (!outputRoot.isAbsolute()) {
+        throw new GradleException('meshPartyBuildRoot must be an absolute path')
+    }
+    gradle.beforeProject { project ->
+        def outputFolder = project == project.rootProject ? 'root' : project.name
+        project.layout.buildDirectory.set(new File(outputRoot, outputFolder))
+    }
+}
