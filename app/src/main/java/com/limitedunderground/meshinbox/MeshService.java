@@ -253,6 +253,10 @@ public final class MeshService extends Service {
         if (moderation.unmute(channel)) publish();
     }
 
+    boolean isConnected(Network network) {
+        return sessions.get(network).ready;
+    }
+
     public RadioState state(Network network) {
         Session session = sessions.get(network);
         List<RadioProtocol.Destination> visible = new ArrayList<>();

@@ -85,4 +85,23 @@
     <string name="scan_no_likely_radios">No matching name or service found. Show all devices to check.</string>
     <string name="scan_access_unavailable">Bluetooth access is unavailable. Check Bluetooth and Nearby devices.</string>
     <string name="scan_access_revoked">Bluetooth access is unavailable. Check the Nearby devices permission.</string>
+    <string name="feedback_title">Send feedback</string>
+    <string name="feedback_shortcut">Feedback</string>
+    <string name="feedback_intro">Write a note for Limited Underground. You can review and edit it in your email app before sending.</string>
+    <string name="feedback_like">I like…</string>
+    <string name="feedback_dislike">I don\'t like…</string>
+    <string name="feedback_change">Change something</string>
+    <string name="feedback_idea">New idea</string>
+    <string name="feedback_bug">Something broke</string>
+    <plurals name="feedback_message">
+        <item quantity="one">Your message (up to %1$,d character)</item>
+        <item quantity="other">Your message (up to %1$,d characters)</item>
+    </plurals>
+    <string name="feedback_include_details">Include app and phone details</string>
+    <string name="feedback_details_summary">This adds the app version and build number, Android version, phone maker and model, and whether each radio type is connected.</string>
+    <string name="feedback_send">Send</string>
+    <string name="feedback_no_email">No email app can open this draft. You can email your feedback to %1$s.</string>
+    <string name="feedback_copy_address">Copy email address</string>
+    <string name="feedback_email_address">Feedback email address</string>
+    <string name="feedback_address_copied">Email address copied</string>
 </resources>
