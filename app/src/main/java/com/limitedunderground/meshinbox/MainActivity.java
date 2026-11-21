@@ -142,6 +142,7 @@ public final class MainActivity extends Activity {
     private Network pendingPicker;
     private ReportReview activeReport;
     private AlertDialog reportDialog;
+    private AlertDialog feedbackDialog;
     private Screen screen = Screen.MESSAGES;
     private String filter;
     private String draft = "";
@@ -237,6 +238,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (feedbackDialog != null) feedbackDialog.dismiss();
         if (activeReport != null) activeReport.update = null;
         if (reportDialog != null) {
             reportDialog.setOnDismissListener(null);
@@ -285,7 +287,11 @@ public final class MainActivity extends Activity {
         titles.addView(label(getString(R.string.app_name), 25, ink, true));
         TextView wordmark = label(getString(R.string.brand_name), 12, muted, true);
         titles.addView(wordmark);
-        brand.addView(titles);
+        brand.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
+        Button feedback = button(getString(R.string.feedback_shortcut), tint, ink);
+        feedback.setContentDescription(getString(R.string.feedback_title));
+        feedback.setOnClickListener(view -> showFeedback());
+        brand.addView(feedback);
         header.addView(brand);
 
         LinearLayout overview = horizontal();
@@ -643,6 +649,10 @@ public final class MainActivity extends Activity {
         scroller.addView(inner);
         content.addView(scroller);
 
+        Button feedback = button(getString(R.string.feedback_title), tint, ink);
+        feedback.setOnClickListener(view -> showFeedback());
+        inner.addView(feedback, new LinearLayout.LayoutParams(-1, -2));
+
         LinearLayout display = settingsGroup(inner, "Display and inbox");
         addChoice(display, "Appearance", "theme", "System", List.of("System", "Light", "Dark"), this::recreate);
         addChoice(display, "Default inbox", "inbox", "All", List.of("All", "Meshtastic", "MeshCore"), () -> {
@@ -703,6 +713,17 @@ public final class MainActivity extends Activity {
         Button meshcore = button("Official MeshCore app", networkFill(Network.MESHCORE), networkInk(Network.MESHCORE));
         meshcore.setOnClickListener(view -> openWebsite(ABOUT_MESHCORE));
         about.addView(meshcore, withTop(4));
+    }
+
+    private void showFeedback() {
+        if (feedbackDialog != null) return;
+        feedbackDialog = FeedbackDialog.create(this, () -> new FeedbackEmail.Details(
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, Build.VERSION.RELEASE,
+                Build.MANUFACTURER, Build.MODEL,
+                service != null && service.isConnected(Network.MESHTASTIC),
+                service != null && service.isConnected(Network.MESHCORE)));
+        feedbackDialog.setOnDismissListener(closed -> feedbackDialog = null);
+        feedbackDialog.show();
     }
 
     private void showChatRules() {

@@ -59,6 +59,11 @@ Verify the chat rules gate on a fresh install and that acceptance survives resta
 
 After a connection or send test, choose **Settings → Diagnostics → Export diagnostics** and save the `.txt` file using Android’s save dialog. Open it and check the app version, Android API level, elapsed event timing, and technical statuses. Check that any test message, contact or channel name, radio address, PIN, and raw traffic are absent. Testers can choose whether to share the file with Limited Underground support. **Clear diagnostics** removes the app’s saved events after confirmation. Testers can delete exported copies at the location where they saved them.
 
+## Give feedback during testing
+
+- Starting with MeshParty 0.1.6, tap **Settings → Send feedback** or **Feedback** at the top of the app. Pick a kind and write a note. Leave **Include app and phone details** on if you want to share the listed details, or turn it off. Tap **Send**, then review and send the draft in your email app. You can also use Google Play’s private feedback for MeshParty with the account that joined the test.
+- During the closed test, stay opted in for at least **14 continuous days**. Leaving and rejoining starts the count again.
+
 ## Later changes
 
 Before a public Play release, a new Personal account needs at least 12 testers opted in to a closed test continuously for 14 days, followed by an application for production access. The internal test is available separately. [Personal-account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465)
