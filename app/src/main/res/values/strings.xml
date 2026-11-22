@@ -87,7 +87,7 @@
     <string name="scan_access_revoked">Bluetooth access is unavailable. Check the Nearby devices permission.</string>
     <string name="feedback_title">Send feedback</string>
     <string name="feedback_shortcut">Feedback</string>
-    <string name="feedback_intro">Write a note for Limited Underground. You can review and edit it in your email app before sending.</string>
+    <string name="feedback_intro">Write a note for Limited Underground. Review it before sending, or open a draft in your email app.</string>
     <string name="feedback_like">I like…</string>
     <string name="feedback_dislike">I don\'t like…</string>
     <string name="feedback_change">Change something</string>
@@ -99,7 +99,26 @@
     </plurals>
     <string name="feedback_include_details">Include app and phone details</string>
     <string name="feedback_details_summary">This adds the app version and build number, Android version, phone maker and model, and whether each radio type is connected.</string>
-    <string name="feedback_send">Send</string>
+    <string name="feedback_send_direct">Send to Limited Underground</string>
+    <string name="feedback_email_instead">Email instead</string>
+    <string name="feedback_open_email">Open email draft</string>
+    <string name="feedback_review_title">Review feedback</string>
+    <string name="feedback_review_body">Kind: %1$s\nReceipt ID: %2$s\n\nMessage:\n%3$s\n\n%4$s</string>
+    <string name="feedback_review_details">App and phone details:\nApp version: %1$s (%2$d)\nAndroid version: %3$s\nPhone maker: %4$s\nPhone model: %5$s\nMeshtastic connected: %6$s\nMeshCore connected: %7$s</string>
+    <string name="feedback_review_no_details">App and phone details: None</string>
+    <string name="feedback_yes">Yes</string>
+    <string name="feedback_no">No</string>
+    <string name="feedback_edit">Edit</string>
+    <string name="feedback_confirm">Confirm send</string>
+    <string name="feedback_sending">Sending feedback…</string>
+    <string name="feedback_receipt">Limited Underground received your feedback.\nReceipt ID: %1$s</string>
+    <string name="feedback_done">Done</string>
+    <string name="feedback_direct_unavailable">Direct feedback is unavailable in this build. You can email instead.</string>
+    <string name="feedback_busy">Another feedback send is in progress. Wait a moment and try again.</string>
+    <string name="feedback_offline">Could not reach the feedback service. Try again or email instead.</string>
+    <string name="feedback_rejected">The service did not accept this attempt. Try again later or email instead.</string>
+    <string name="feedback_unconfirmed">Delivery is unconfirmed. If you try again, MeshParty will use the same receipt ID.</string>
+    <string name="feedback_email_duplicate_warning">Limited Underground may already have this feedback. Tap Open email draft if you still want to email it.</string>
     <string name="feedback_no_email">No email app can open this draft. You can email your feedback to %1$s.</string>
     <string name="feedback_copy_address">Copy email address</string>
     <string name="feedback_email_address">Feedback email address</string>
