@@ -88,9 +88,9 @@ public final class RadioPicker {
                 View row = super.getView(position, convertView, parent);
                 Candidate candidate = getItem(position);
                 ((TextView) row.findViewById(android.R.id.text1)).setText(candidate.name);
-                String detail = candidate.bonded ? "Paired  •  " : "Nearby  •  ";
+                int detailRes = candidate.bonded ? R.string.radio_picker_paired : R.string.radio_picker_nearby;
                 ((TextView) row.findViewById(android.R.id.text2)).setText(
-                        detail + candidate.device.getAddress());
+                        context.getString(detailRes, candidate.device.getAddress()));
                 return row;
             }
 
