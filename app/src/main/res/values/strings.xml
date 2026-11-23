@@ -76,6 +76,8 @@
     <string name="report_sent_title">Report received</string>
     <string name="report_sent_receipt">Limited Underground received your report. Keep this reference for any follow-up.\n\n%1$s</string>
     <string name="show_all_devices">Show all Bluetooth devices</string>
+    <string name="radio_picker_paired">"Paired  •  %1$s"</string>
+    <string name="radio_picker_nearby">"Nearby  •  %1$s"</string>
     <string name="allow_nearby_devices">Allow Nearby devices to look for radios.</string>
     <string name="turn_on_bluetooth">Turn on Bluetooth to look for radios.</string>
     <string name="scan_unavailable_paired">Scan unavailable. You can still choose a paired radio.</string>
