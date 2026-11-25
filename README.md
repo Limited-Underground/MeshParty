@@ -2,14 +2,15 @@
 
 MeshParty is a standalone Android app for one Meshtastic radio and one MeshCore radio. It uses two independent Bluetooth LE connections and shows messages from both in one inbox. Each send button has its own channel or direct-message destination.
 
-MeshParty is an independent alternative for using both networks from one screen. It is not intended to replace the official MeshCore or Meshtastic apps. We encourage you to use both official apps. [MeshCore Android app](https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android) · [Meshtastic downloads](https://meshtastic.org/downloads/#apps)
+MeshParty is an independent alternative for using both networks from one screen. It is not intended to replace the official MeshCore or Meshtastic apps. I encourage you to use both official apps. [MeshCore Android app](https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android) · [Meshtastic downloads](https://meshtastic.org/downloads/#apps)
 
 ## Try the debug build
 
 1. Use a phone with Android 12 or newer, a Bluetooth-enabled Meshtastic radio, and a radio running MeshCore Bluetooth Companion firmware.
 2. In **Radios**, choose each radio separately and grant **Nearby devices** access when Android asks. Wait for both status indicators to read **Connected**.
-3. In **Messages**, choose a destination beside each send button. Type a message and tap the button for the network you want. The **Reply** action selects the corresponding destination for an incoming message.
-4. In **Settings**, choose the theme, default inbox, message alerts, Bluetooth reconnect, and optional channel-send confirmation. On Android 13 and newer, Android notification permission is required for message alerts.
+3. A new Meshtastic radio has no region and does not transmit until one is set. On the Meshtastic card in **Radios**, tap **Set up radio**, choose your region (MeshParty never picks one for you), and optionally change the modem preset and the radio's long and short names. MeshParty reads the settings back to confirm them; the radio may restart and reconnect while it does.
+4. In **Messages**, choose a destination beside each send button. Type a message and tap the button for the network you want. The **Reply** action selects the corresponding destination for an incoming message.
+5. In **Settings**, choose the theme, default inbox, message alerts, Bluetooth reconnect, and optional channel-send confirmation. On Android 13 and newer, Android notification permission is required for message alerts.
 
 ## Build locally
 

@@ -34,5 +34,11 @@ public interface RadioProtocol {
                      long timestampMillis);
         void notice(String information);
         void failed(String information);
+        /** The radio reported new setup values (region, preset or names). */
+        default void setupChanged() {}
+        /** All setup changes were handed to the radio; it may now restart. */
+        default void setupApplied() {}
+        /** The radio refused or could not take the setup changes. */
+        default void setupFailed(String information) {}
     }
 }
