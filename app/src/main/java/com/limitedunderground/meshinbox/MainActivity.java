@@ -143,6 +143,7 @@ public final class MainActivity extends Activity {
     private ReportReview activeReport;
     private AlertDialog reportDialog;
     private AlertDialog feedbackDialog;
+    private AlertDialog setupDialog;
     private Screen screen = Screen.MESSAGES;
     private String filter;
     private String draft = "";
@@ -239,6 +240,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         if (feedbackDialog != null) feedbackDialog.dismiss();
+        if (setupDialog != null) setupDialog.dismiss();
         if (activeReport != null) activeReport.update = null;
         if (reportDialog != null) {
             reportDialog.setOnDismissListener(null);
@@ -574,6 +576,17 @@ public final class MainActivity extends Activity {
                 else beginRadioSelection(network);
             });
             card.addView(action, withTop(8));
+            MeshtasticSetup.Current setup = network == Network.MESHTASTIC && service != null && state.ready()
+                    ? service.meshtasticSetup() : null;
+            if (setup != null) {
+                if (!setup.regionSet()) {
+                    card.addView(label(getString(R.string.setup_region_missing), 13, ink, true), withTop(6));
+                }
+                Button configure = button(getString(R.string.setup_button), surface, ink);
+                configure.setEnabled(!service.setupInProgress(network));
+                configure.setOnClickListener(view -> showRadioSetup());
+                card.addView(configure, withTop(4));
+            }
             radioCards.addView(card, withTop(10));
         }
         radioCards.addView(label("Use a Bluetooth-enabled Meshtastic radio and a radio running MeshCore Bluetooth Companion firmware.",
@@ -713,6 +726,23 @@ public final class MainActivity extends Activity {
         Button meshcore = button("Official MeshCore app", networkFill(Network.MESHCORE), networkInk(Network.MESHCORE));
         meshcore.setOnClickListener(view -> openWebsite(ABOUT_MESHCORE));
         about.addView(meshcore, withTop(4));
+    }
+
+    private void showRadioSetup() {
+        if (setupDialog != null || service == null) return;
+        MeshtasticSetup.Current setup = service.meshtasticSetup();
+        if (setup == null) {
+            notifyUser("Connect the Meshtastic radio first.");
+            return;
+        }
+        setupDialog = RadioSetupDialog.create(this, setup, request -> {
+            String problem = service == null ? "Connect the Meshtastic radio first."
+                    : service.applyMeshtasticSetup(request);
+            if (problem == null) refresh();
+            return problem;
+        });
+        setupDialog.setOnDismissListener(closed -> setupDialog = null);
+        setupDialog.show();
     }
 
     private void showFeedback() {

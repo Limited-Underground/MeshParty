@@ -125,4 +125,21 @@
     <string name="feedback_copy_address">Copy email address</string>
     <string name="feedback_email_address">Feedback email address</string>
     <string name="feedback_address_copied">Email address copied</string>
+    <string name="setup_title">Set up Meshtastic radio</string>
+    <string name="setup_button">Set up radio</string>
+    <string name="setup_intro">Choose the region where you use this radio. The region sets which frequencies and power the radio may use. A new radio does not transmit until a region is set.</string>
+    <string name="setup_now">Now: %1$s · %2$s</string>
+    <string name="setup_custom_modem">Keep current modem settings</string>
+    <string name="setup_keep_custom">Keep current modem settings (custom)</string>
+    <string name="setup_tx_off">Transmit is turned off on this radio. Turn it on in the Meshtastic app.</string>
+    <string name="setup_region_title">Your region</string>
+    <string name="setup_region_choose">Choose…</string>
+    <string name="setup_region_value">Region: %1$s</string>
+    <string name="setup_preset_title">Modem preset</string>
+    <string name="setup_preset_value">Modem preset: %1$s</string>
+    <string name="setup_long_name">Long name (up to 24 bytes)</string>
+    <string name="setup_short_name">Short name (up to 4 letters or digits)</string>
+    <string name="setup_rules">MeshParty never picks a region for you. You are responsible for following the radio rules where you are. Radios only hear each other on the same preset and channel; LongFast is the usual default.</string>
+    <string name="setup_save">Save to radio</string>
+    <string name="setup_region_missing">No region set: this radio cannot transmit yet.</string>
 </resources>

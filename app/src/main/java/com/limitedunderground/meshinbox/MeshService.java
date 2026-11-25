@@ -99,6 +99,8 @@ public final class MeshService extends Service {
     // Includes Android's first protected GATT operation and the full radio configuration sync.
     private static final long SYNC_TIMEOUT_MS = 90_000;
     private static final int[] RECONNECT_SECONDS = {1, 2, 4, 8, 16};
+    private static final long SETUP_CONFIRM_TIMEOUT_MS = 120_000;
+    private static final long SETUP_READBACK_DELAY_MS = 4_000;
 
     private final LocalBinder binder = new LocalBinder();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -373,6 +375,41 @@ public final class MeshService extends Service {
         return null;
     }
 
+    /** The Meshtastic radio's setup values, or null when it is not connected and synced. */
+    public MeshtasticSetup.Current meshtasticSetup() {
+        Session session = sessions.get(Network.MESHTASTIC);
+        if (!session.ready || !(session.protocol instanceof MeshtasticProtocol meshtastic)) return null;
+        return meshtastic.setupState();
+    }
+
+    /** True while MeshParty waits for the radio to confirm a setup change. */
+    public boolean setupInProgress(Network network) {
+        return sessions.get(network).expectedSetup != null;
+    }
+
+    /** Sends region, preset and names to the Meshtastic radio. Returns a problem, or null once started. */
+    public String applyMeshtasticSetup(MeshtasticSetup.Request request) {
+        Session session = sessions.get(Network.MESHTASTIC);
+        if (!session.ready || !(session.protocol instanceof MeshtasticProtocol meshtastic)) {
+            return "Connect the Meshtastic radio first.";
+        }
+        if (session.expectedSetup != null) return "Radio setup is already running.";
+        try {
+            meshtastic.applySetup(request);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            return error.getMessage() == null ? "The radio could not take these settings." : error.getMessage();
+        }
+        session.expectedSetup = request;
+        session.notice = "Sending settings to the radio…";
+        session.pendingSetupTimeout = () -> {
+            session.pendingSetupTimeout = null;
+            session.finishSetup("MeshParty could not confirm the new settings. Open Set up radio to check them.");
+        };
+        main.postDelayed(session.pendingSetupTimeout, SETUP_CONFIRM_TIMEOUT_MS);
+        publish();
+        return null;
+    }
+
     private void publish() {
         for (Runnable listener : List.copyOf(listeners)) listener.run();
     }
@@ -556,6 +593,9 @@ public final class MeshService extends Service {
         private RadioProtocol protocol;
         private Runnable pendingRetry;
         private Runnable pendingSyncTimeout;
+        private Runnable pendingSetupTimeout;
+        private Runnable pendingSetupReadback;
+        private MeshtasticSetup.Request expectedSetup;
         private List<RadioProtocol.Destination> destinations = List.of();
 
         Session(Network network) {
@@ -628,6 +668,13 @@ public final class MeshService extends Service {
                     retryAttempt = 0;
                     status = "Connected";
                     notice = "";
+                    if (protocol instanceof MeshtasticProtocol meshtastic && expectedSetup == null) {
+                        MeshtasticSetup.Current setup = meshtastic.setupState();
+                        if (setup != null && !setup.regionSet()) {
+                            notice = getString(R.string.setup_region_missing) + " Open Radios and tap Set up radio.";
+                        }
+                    }
+                    checkSetup();
                     publishRadioState();
                 }
 
@@ -655,6 +702,38 @@ public final class MeshService extends Service {
                 @Override
                 public void failed(String information) {
                     fail(token, information, Event.PROTOCOL_FAILED);
+                }
+
+                @Override
+                public void setupChanged() {
+                    if (!isCurrent(token)) return;
+                    checkSetup();
+                    publish();
+                }
+
+                @Override
+                public void setupApplied() {
+                    if (!isCurrent(token) || expectedSetup == null) return;
+                    notice = "Settings sent. The radio may restart; MeshParty reconnects and checks them.";
+                    cancelSetupReadback();
+                    pendingSetupReadback = () -> {
+                        pendingSetupReadback = null;
+                        if (isCurrent(token) && ready && protocol instanceof MeshtasticProtocol meshtastic) {
+                            try {
+                                meshtastic.refreshSetup();
+                            } catch (IllegalArgumentException | IllegalStateException ignored) {
+                                // The link dropped; the reconnect handshake reads the settings instead.
+                            }
+                        }
+                    };
+                    main.postDelayed(pendingSetupReadback, SETUP_READBACK_DELAY_MS);
+                    publish();
+                }
+
+                @Override
+                public void setupFailed(String information) {
+                    if (!isCurrent(token)) return;
+                    finishSetup(information);
                 }
             };
         }
@@ -695,7 +774,34 @@ public final class MeshService extends Service {
             deactivate("Offline");
         }
 
+        private void checkSetup() {
+            if (expectedSetup == null || !(protocol instanceof MeshtasticProtocol meshtastic)) return;
+            MeshtasticSetup.Current current = meshtastic.setupState();
+            if (!MeshtasticSetup.matches(current, expectedSetup)) return;
+            String preset = current.usePreset() ? MeshtasticSetup.presetLabel(current.preset()) : "custom settings";
+            finishSetup("Radio set up: " + MeshtasticSetup.regionLabel(current.region()) + ", " + preset + ".");
+        }
+
+        private void finishSetup(String result) {
+            expectedSetup = null;
+            cancelSetupReadback();
+            if (pendingSetupTimeout != null) {
+                main.removeCallbacks(pendingSetupTimeout);
+                pendingSetupTimeout = null;
+            }
+            notice = result;
+            publish();
+        }
+
+        private void cancelSetupReadback() {
+            if (pendingSetupReadback != null) {
+                main.removeCallbacks(pendingSetupReadback);
+                pendingSetupReadback = null;
+            }
+        }
+
         private void deactivate(String newStatus) {
+            if (expectedSetup != null) finishSetup("");
             active = false;
             previouslyReady = false;
             retryAttempt = 0;

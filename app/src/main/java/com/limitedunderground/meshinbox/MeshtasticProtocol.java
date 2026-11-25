@@ -7,14 +7,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
-/** The messaging subset of Meshtastic's BLE PhoneAPI (ToRadio and FromRadio). */
+/** The messaging and first-time setup subset of Meshtastic's BLE PhoneAPI (ToRadio and FromRadio). */
 final class MeshtasticProtocol implements RadioProtocol {
     private static final UUID SERVICE = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd");
     private static final UUID TO_RADIO = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7");
@@ -25,6 +27,9 @@ final class MeshtasticProtocol implements RadioProtocol {
     private static final int TEXT_MESSAGE = 1;
     private static final int NODE_INFO = 4;
     private static final int ROUTING = 5;
+    private static final int ADMIN = 6;
+    private static final int LORA_CONFIG_TYPE = 5;
+    private static final int ADMIN_BAD_SESSION_KEY = 36;
     // Leave space for protobuf and public-key encryption overhead on the air.
     private static final int TEXT_LIMIT = 200;
     private static final byte[] EMPTY_PUBLIC_KEY = new byte[32];
@@ -38,6 +43,10 @@ final class MeshtasticProtocol implements RadioProtocol {
     private final Map<String, Route> routes = new LinkedHashMap<>();
     private final Map<Long, Route> pending = new LinkedHashMap<>();
     private List<Destination> advertised = List.of();
+    private final Set<Long> adminRequests = new HashSet<>();
+    private final Map<Integer, MeshtasticSetup.RegionRule> regionRules = new HashMap<>();
+
+    private enum SetupStep { IDLE, AWAITING_KEY, SENT }
 
     private Link link;
     private Events events;
@@ -47,6 +56,11 @@ final class MeshtasticProtocol implements RadioProtocol {
     private boolean reading;
     private boolean readAgain;
     private String presetName;
+    private byte[] loraConfig;
+    private byte[] ownUser = new byte[0];
+    private byte[] sessionKey = new byte[0];
+    private SetupStep setupStep = SetupStep.IDLE;
+    private MeshtasticSetup.Request setupRequest;
 
     @Override public UUID serviceId() { return SERVICE; }
     @Override public UUID writeId() { return TO_RADIO; }
@@ -78,6 +92,13 @@ final class MeshtasticProtocol implements RadioProtocol {
         reading = false;
         readAgain = false;
         presetName = null;
+        loraConfig = null;
+        ownUser = new byte[0];
+        sessionKey = new byte[0];
+        setupStep = SetupStep.IDLE;
+        setupRequest = null;
+        adminRequests.clear();
+        regionRules.clear();
         channels.clear();
         peers.clear();
         routes.clear();
@@ -130,19 +151,18 @@ final class MeshtasticProtocol implements RadioProtocol {
         }
         if (!ready && frame.contains(3)) {
             ownNode = frame.message(3).number(1);
+        } else if (frame.contains(19)) {
+            readRegionRules(frame.binary(19));
         } else if (frame.contains(4)) {
             Proto node = frame.message(4);
             long number = node.number(1);
             if (node.contains(2)) {
+                if (number == ownNode) ownUser = node.binary(2);
                 updatePeer(number, node.message(2), (int) node.number(7), node.number(11) != 0);
             }
         } else if (frame.contains(5)) {
             Proto configuration = frame.message(5);
-            if (configuration.contains(6)) {
-                Proto lora = configuration.message(6);
-                presetName = lora.number(1) == 0 ? "Custom" : presetLabel(lora.number(2));
-                if (ready) publishDestinations();
-            }
+            if (configuration.contains(6)) updateLora(configuration.binary(6));
         } else if (frame.contains(10)) {
             updateChannel(frame.message(10));
         } else if (!ready && frame.number(7) == configurationNonce) {
@@ -241,6 +261,10 @@ final class MeshtasticProtocol implements RadioProtocol {
             receiveRouting(data, from, packet.number(23));
             return;
         }
+        if (port == ADMIN) {
+            if (from == ownNode || from == 0) receiveAdmin(data);
+            return;
+        }
         if (!isNode(from) || from == ownNode || (to != BROADCAST && to != ownNode)) return;
 
         if (port == NODE_INFO) {
@@ -275,6 +299,20 @@ final class MeshtasticProtocol implements RadioProtocol {
 
     private void receiveRouting(Proto data, long from, long proof) throws MalformedProtobuf {
         long requestId = data.number(6);
+        if (adminRequests.contains(requestId)) {
+            Proto routing = Proto.parse(data.binary(2));
+            if (!routing.contains(3)) return;
+            long error = routing.number(3);
+            // A successful acknowledgement keeps the id: the reply to a request may follow it.
+            if (error == 0) return;
+            adminRequests.remove(requestId);
+            if (error == ADMIN_BAD_SESSION_KEY) {
+                failSetup("The radio refused the settings because its session key expired. Try again.");
+            } else {
+                failSetup("The radio refused the settings (routing code " + error + ").");
+            }
+            return;
+        }
         Route route = pending.get(requestId);
         if (route == null) return;
         Proto routing = Proto.parse(data.binary(2));
@@ -290,6 +328,154 @@ final class MeshtasticProtocol implements RadioProtocol {
             events.notice("Meshtastic verified the recipient's acknowledgement.");
         } else {
             events.notice("Meshtastic reported an acknowledgement.");
+        }
+    }
+
+    /** The radio's current setup values, or null before the handshake has delivered them. */
+    MeshtasticSetup.Current setupState() {
+        if (!ready || loraConfig == null) return null;
+        try {
+            Proto lora = Proto.parse(loraConfig);
+            Proto user = Proto.parse(ownUser);
+            return new MeshtasticSetup.Current((int) lora.number(7), lora.number(1) != 0, (int) lora.number(2),
+                    user.string(2), user.string(3), lora.number(9) != 0, Map.copyOf(regionRules));
+        } catch (MalformedProtobuf error) {
+            return null;
+        }
+    }
+
+    /**
+     * Starts writing region, preset and names. The radio is asked for its LoRa settings first,
+     * so the change is built on its latest values and carries the session key it returns.
+     */
+    void applySetup(MeshtasticSetup.Request request) {
+        if (!ready || link == null) throw new IllegalStateException("Meshtastic is not connected.");
+        MeshtasticSetup.Current current = setupState();
+        if (current == null) throw new IllegalStateException("The radio has not reported its settings yet.");
+        String problem = MeshtasticSetup.validate(request, current.regionRules());
+        if (problem != null) throw new IllegalArgumentException(problem);
+        if (setupStep == SetupStep.AWAITING_KEY) throw new IllegalStateException("Radio setup is already running.");
+        setupRequest = request;
+        setupStep = SetupStep.AWAITING_KEY;
+        sendAdmin(new ProtoWriter().varintField(5, LORA_CONFIG_TYPE).bytes(), true);
+    }
+
+    /** Asks the radio for its LoRa settings and owner again, to confirm a change. */
+    void refreshSetup() {
+        if (!ready || link == null) return;
+        sendAdmin(new ProtoWriter().varintField(5, LORA_CONFIG_TYPE).bytes(), true);
+        sendAdmin(new ProtoWriter().varintField(3, 1).bytes(), true);
+    }
+
+    private void receiveAdmin(Proto data) throws MalformedProtobuf {
+        long requestId = data.number(6);
+        if (!adminRequests.remove(requestId)) return;
+        Proto admin = Proto.parse(data.binary(2));
+        if (admin.contains(101)) sessionKey = admin.binary(101);
+        boolean loraReply = false;
+        if (admin.contains(6)) {
+            Proto configuration = admin.message(6);
+            if (configuration.contains(6)) {
+                updateLora(configuration.binary(6));
+                loraReply = true;
+            }
+        }
+        if (admin.contains(4)) {
+            ownUser = admin.binary(4);
+            if (events != null) events.setupChanged();
+        }
+        if (loraReply && setupStep == SetupStep.AWAITING_KEY) sendSetupChanges();
+    }
+
+    private void sendSetupChanges() {
+        MeshtasticSetup.Request request = setupRequest;
+        MeshtasticSetup.Current current = setupState();
+        if (request == null || current == null) {
+            failSetup("The radio did not report its settings.");
+            return;
+        }
+        byte[] lora = MeshtasticSetup.withoutFields(loraConfig,
+                request.preset() == null ? Set.of(7) : Set.of(1, 2, 7));
+        byte[] user = MeshtasticSetup.withoutFields(ownUser, Set.of(2, 3));
+        if (lora == null || user == null) {
+            failSetup("The radio reported settings MeshParty cannot edit safely.");
+            return;
+        }
+        ProtoWriter newLora = new ProtoWriter().raw(lora).varintField(7, request.region());
+        if (request.preset() != null) newLora.varintField(1, 1).varintField(2, request.preset());
+        String longName = request.longName().trim();
+        String shortName = request.shortName().trim();
+        boolean namesChanged = !current.longName().equals(longName) || !current.shortName().equals(shortName);
+        boolean loraChanged = current.region() != request.region() || (request.preset() != null
+                && (!current.usePreset() || current.preset() != request.preset()));
+        try {
+            sendAdmin(new ProtoWriter().varintField(64, 1).bytes(), false);
+            if (namesChanged) {
+                byte[] owner = new ProtoWriter().raw(user)
+                        .binaryField(2, longName.getBytes(StandardCharsets.UTF_8))
+                        .binaryField(3, shortName.getBytes(StandardCharsets.UTF_8)).bytes();
+                sendAdmin(new ProtoWriter().binaryField(32, owner).bytes(), false);
+            }
+            if (loraChanged) {
+                byte[] config = new ProtoWriter().binaryField(6, newLora.bytes()).bytes();
+                sendAdmin(new ProtoWriter().binaryField(34, config).bytes(), false);
+            }
+            sendAdmin(new ProtoWriter().varintField(65, 1).bytes(), false);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            failSetup(error.getMessage() == null ? "The settings could not be sent." : error.getMessage());
+            return;
+        }
+        setupStep = SetupStep.SENT;
+        setupRequest = null;
+        if (events != null) events.setupApplied();
+    }
+
+    private void sendAdmin(byte[] admin, boolean wantResponse) {
+        ProtoWriter message = new ProtoWriter().raw(admin);
+        if (sessionKey.length > 0) message.binaryField(101, sessionKey);
+        ProtoWriter data = new ProtoWriter().varintField(1, ADMIN).binaryField(2, message.bytes());
+        if (wantResponse) data.varintField(3, 1);
+        long id;
+        do {
+            id = Integer.toUnsignedLong(random.nextInt());
+        } while (id == 0 || pending.containsKey(id) || adminRequests.contains(id));
+        ProtoWriter packet = new ProtoWriter().fixed32Field(2, ownNode).binaryField(4, data.bytes())
+                .fixed32Field(6, id).varintField(10, 1);
+        link.write(new ProtoWriter().binaryField(1, packet.bytes()).bytes());
+        if (adminRequests.size() >= 32) adminRequests.remove(adminRequests.iterator().next());
+        adminRequests.add(id);
+    }
+
+    private void failSetup(String reason) {
+        setupStep = SetupStep.IDLE;
+        setupRequest = null;
+        if (events != null) events.setupFailed(reason);
+    }
+
+    private void updateLora(byte[] lora) throws MalformedProtobuf {
+        Proto parsed = Proto.parse(lora);
+        loraConfig = lora;
+        presetName = parsed.number(1) == 0 ? "Custom" : presetLabel(parsed.number(2));
+        if (ready) {
+            publishDestinations();
+            if (events != null) events.setupChanged();
+        }
+    }
+
+    private void readRegionRules(byte[] map) throws MalformedProtobuf {
+        List<MeshtasticSetup.RegionRule> groups = new ArrayList<>();
+        for (byte[] group : Proto.repeatedBinary(map, 1)) {
+            Proto parsed = Proto.parse(group);
+            List<Integer> presets = new ArrayList<>();
+            for (long preset : Proto.repeatedNumbers(group, 1)) presets.add((int) preset);
+            groups.add(new MeshtasticSetup.RegionRule(List.copyOf(presets), (int) parsed.number(2),
+                    parsed.number(3) != 0));
+        }
+        regionRules.clear();
+        for (byte[] entry : Proto.repeatedBinary(map, 2)) {
+            Proto parsed = Proto.parse(entry);
+            long index = parsed.number(2);
+            if (index >= 0 && index < groups.size()) regionRules.put((int) parsed.number(1), groups.get((int) index));
         }
     }
 
@@ -389,7 +575,52 @@ final class MeshtasticProtocol implements RadioProtocol {
         byte[] binary(int field) { return fields.get(field) instanceof byte[] bytes ? bytes : EMPTY; }
         String string(int field) { return new String(binary(field), StandardCharsets.UTF_8); }
         Proto message(int field) throws MalformedProtobuf { return parse(binary(field)); }
+
+        /** Every length-delimited value of a repeated field, in order. */
+        static List<byte[]> repeatedBinary(byte[] bytes, int wanted) throws MalformedProtobuf {
+            List<byte[]> values = new ArrayList<>();
+            scan(bytes, wanted, values, null);
+            return values;
+        }
+
+        /** Every value of a repeated varint field, packed or not. */
+        static List<Long> repeatedNumbers(byte[] bytes, int wanted) throws MalformedProtobuf {
+            List<byte[]> packed = new ArrayList<>();
+            List<Long> values = new ArrayList<>();
+            scan(bytes, wanted, packed, values);
+            for (byte[] run : packed) {
+                Cursor cursor = new Cursor(run);
+                while (cursor.position < run.length) values.add(cursor.varint());
+            }
+            return values;
+        }
+
+        private static void scan(byte[] bytes, int wanted, List<byte[]> binary, List<Long> numbers)
+                throws MalformedProtobuf {
+            Cursor input = new Cursor(bytes);
+            while (input.position < bytes.length) {
+                long tag = input.varint();
+                int field = (int) (tag >>> 3);
+                switch ((int) (tag & 7)) {
+                    case 0 -> {
+                        long value = input.varint();
+                        if (field == wanted && numbers != null) numbers.add(value);
+                    }
+                    case 1 -> input.advance(8);
+                    case 2 -> {
+                        long size = input.varint();
+                        if (size < 0 || size > bytes.length - input.position) throw new MalformedProtobuf();
+                        int start = input.position;
+                        input.advance((int) size);
+                        if (field == wanted) binary.add(Arrays.copyOfRange(bytes, start, input.position));
+                    }
+                    case 5 -> input.advance(4);
+                    default -> throw new MalformedProtobuf();
+                }
+            }
+        }
     }
+
 
     private static final class Cursor {
         private final byte[] bytes;
@@ -433,6 +664,11 @@ final class MeshtasticProtocol implements RadioProtocol {
         ProtoWriter fixed32Field(int field, long value) {
             writeVarint((field << 3) | 5);
             for (int i = 0; i < 4; i++) output.write((int) (value >>> (i * 8)) & 0xff);
+            return this;
+        }
+
+        ProtoWriter raw(byte[] value) {
+            output.write(value, 0, value.length);
             return this;
         }
 
