@@ -58,6 +58,7 @@ final class RadioSetupDialog {
         scroll.addView(form);
 
         addText(form, context.getString(R.string.setup_intro));
+        addText(form, context.getString(R.string.setup_band_hint));
         String now = context.getString(R.string.setup_now, MeshtasticSetup.regionLabel(current.region()),
                 current.usePreset() ? MeshtasticSetup.presetLabel(current.preset())
                         : context.getString(R.string.setup_custom_modem));
@@ -171,7 +172,23 @@ final class RadioSetupDialog {
         MeshtasticSetup.Request request = new MeshtasticSetup.Request(region, preset,
                 longName.getText().toString(), shortName.getText().toString());
         String problem = MeshtasticSetup.validate(request, current.regionRules());
-        if (problem == null) problem = apply.apply(request);
+        if (problem != null) {
+            status.setText(problem);
+            return;
+        }
+        String warning = MeshtasticSetup.bandChangeWarning(current.region(), region);
+        if (warning == null) {
+            send(request);
+            return;
+        }
+        new AlertDialog.Builder(activity).setTitle(R.string.setup_band_title).setMessage(warning)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.setup_band_confirm, (confirm, which) -> send(request))
+                .show();
+    }
+
+    private void send(MeshtasticSetup.Request request) {
+        String problem = apply.apply(request);
         if (problem != null) {
             status.setText(problem);
             return;

@@ -18,6 +18,7 @@ public final class MeshtasticSetupTest {
 
     public static void main(String[] args) {
         tables();
+        bands();
         validation();
         fieldCopy();
         setupExchange();
@@ -39,6 +40,29 @@ public final class MeshtasticSetupTest {
         sorted.sort(String::compareTo);
         check(labels.equals(sorted), "regions are alphabetical");
         check(MeshtasticSetup.PRESETS.get(0).code() == MeshtasticSetup.LONG_FAST, "LongFast is listed first");
+    }
+
+    private static void bands() {
+        check(MeshtasticSetup.band(0) == null, "an unset region has no band");
+        check(MeshtasticSetup.band(27) == null, "a hidden amateur region has no band");
+        check(MeshtasticSetup.band(2) == MeshtasticSetup.Band.MHZ_433, "EU 433");
+        check(MeshtasticSetup.band(4) == MeshtasticSetup.Band.MHZ_470, "China 470");
+        check(MeshtasticSetup.band(13) == MeshtasticSetup.Band.GHZ_2_4, "2.4 GHz");
+        check(MeshtasticSetup.band(1) == MeshtasticSetup.Band.MHZ_868_915
+                && MeshtasticSetup.band(3) == MeshtasticSetup.Band.MHZ_868_915, "US and EU 868 share a group");
+        for (MeshtasticSetup.Region region : MeshtasticSetup.REGIONS) {
+            check(MeshtasticSetup.band(region.code()) != null, "every offered region has a band: " + region.label());
+            boolean low = region.band().startsWith("43");
+            check(low == (MeshtasticSetup.band(region.code()) == MeshtasticSetup.Band.MHZ_433),
+                    "the 433 group matches the listed band: " + region.label());
+        }
+        String toLow = MeshtasticSetup.bandChangeWarning(1, 2);
+        check(toLow != null && toLow.contains("868/915 MHz") && toLow.contains("433 MHz"), "915 radio to a 433 region warns");
+        check(MeshtasticSetup.bandChangeWarning(1, 13) != null, "915 radio to 2.4 GHz warns");
+        check(MeshtasticSetup.bandChangeWarning(2, 1) != null, "433 radio to US warns");
+        check(MeshtasticSetup.bandChangeWarning(1, 3) == null, "US to EU 868 does not warn");
+        check(MeshtasticSetup.bandChangeWarning(2, 22) == null, "433 to 433 does not warn");
+        check(MeshtasticSetup.bandChangeWarning(0, 2) == null, "a fresh radio gives no band to compare");
     }
 
     private static void validation() {

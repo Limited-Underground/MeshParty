@@ -26,6 +26,19 @@ final class MeshtasticSetup {
 
     record Preset(int code, String label) {}
 
+    /**
+     * Frequency groups a radio's hardware is built for. The radio does not report its hardware
+     * band, so MeshParty compares the chosen region with the one already on the radio. 863-928 MHz
+     * is one group: 868 and 915 boards use the same chips and the official apps let both choose.
+     */
+    enum Band {
+        MHZ_433("433 MHz"), MHZ_470("470 MHz"), MHZ_868_915("868/915 MHz"), GHZ_2_4("2.4 GHz");
+
+        final String label;
+
+        Band(String label) { this.label = label; }
+    }
+
     /** What the radio reported. Allowed presets are empty when the radio sent no region map. */
     record Current(int region, boolean usePreset, int preset, String longName, String shortName,
                    boolean txEnabled, Map<Integer, RegionRule> regionRules) {
@@ -100,6 +113,31 @@ final class MeshtasticSetup {
     static Region region(int code) {
         for (Region region : REGIONS) if (region.code() == code) return region;
         return null;
+    }
+
+    /** The hardware band group of a region, or null for UNSET and unknown codes. */
+    static Band band(int region) {
+        return switch (region) {
+            case 2, 14, 16, 19, 22, 23 -> Band.MHZ_433;
+            case 4 -> Band.MHZ_470;
+            case 13 -> Band.GHZ_2_4;
+            case 0 -> null;
+            default -> region(region) == null ? null : Band.MHZ_868_915;
+        };
+    }
+
+    /**
+     * A warning when the chosen region is in a different band group from the region the radio
+     * has now, which usually means hardware that cannot work there. Null when nothing is known
+     * (a radio with no region) or the bands match.
+     */
+    static String bandChangeWarning(int currentRegion, int chosenRegion) {
+        Band current = band(currentRegion);
+        Band chosen = band(chosenRegion);
+        if (current == null || chosen == null || current == chosen) return null;
+        return "This radio is set for the " + current.label + " band, and " + regionLabel(chosenRegion)
+                + " uses " + chosen.label + ". A radio only works in the band its hardware is built for."
+                + " Save anyway?";
     }
 
     static String regionLabel(int code) {

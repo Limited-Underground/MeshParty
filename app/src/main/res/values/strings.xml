@@ -141,5 +141,8 @@
     <string name="setup_short_name">Short name (up to 4 letters or digits)</string>
     <string name="setup_rules">MeshParty never picks a region for you. You are responsible for following the radio rules where you are. Radios only hear each other on the same preset and channel; LongFast is the usual default.</string>
     <string name="setup_save">Save to radio</string>
+    <string name="setup_band_hint">Pick a region that matches the frequency band of your radio (shown on the radio or its box). A 915 MHz radio cannot use a 433 MHz region.</string>
+    <string name="setup_band_title">Different frequency band</string>
+    <string name="setup_band_confirm">Save anyway</string>
     <string name="setup_region_missing">No region set: this radio cannot transmit yet.</string>
 </resources>
