@@ -579,10 +579,12 @@ public final class MainActivity extends Activity {
             MeshtasticSetup.Current setup = network == Network.MESHTASTIC && service != null && state.ready()
                     ? service.meshtasticSetup() : null;
             if (setup != null) {
-                if (!setup.regionSet()) {
+                boolean noticeShown = notice != null && !notice.trim().isEmpty();
+                if (!setup.regionSet() && !noticeShown) {
                     card.addView(label(getString(R.string.setup_region_missing), 13, ink, true), withTop(6));
                 }
-                Button configure = button(getString(R.string.setup_button), surface, ink);
+                Button configure = button(getString(setup.regionSet() ? R.string.setup_button_change
+                        : R.string.setup_button), tint, ink);
                 configure.setEnabled(!service.setupInProgress(network));
                 configure.setOnClickListener(view -> showRadioSetup());
                 card.addView(configure, withTop(4));
@@ -662,6 +664,9 @@ public final class MainActivity extends Activity {
         scroller.addView(inner);
         content.addView(scroller);
 
+        TextView version = label(getString(R.string.app_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                15, ink, true);
+        inner.addView(version);
         Button feedback = button(getString(R.string.feedback_title), tint, ink);
         feedback.setOnClickListener(view -> showFeedback());
         inner.addView(feedback, new LinearLayout.LayoutParams(-1, -2));
@@ -716,7 +721,9 @@ public final class MainActivity extends Activity {
         diagnostics.addView(clear, withTop(4));
 
         LinearLayout about = settingsGroup(inner, "About MeshParty");
-        about.addView(label(getString(R.string.independent_app), 14, ink, false));
+        about.addView(label(getString(R.string.app_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                14, ink, true));
+        about.addView(label(getString(R.string.independent_app), 14, ink, false), withTop(4));
         Button privacy = button(getString(R.string.privacy_policy), tint, ink);
         privacy.setOnClickListener(view -> showPrivacyPolicy());
         about.addView(privacy, withTop(7));

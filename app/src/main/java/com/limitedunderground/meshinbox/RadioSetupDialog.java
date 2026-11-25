@@ -93,6 +93,7 @@ final class RadioSetupDialog {
         addText(form, context.getString(R.string.setup_rules));
         status = new TextView(context);
         status.setTextSize(14);
+        status.setTypeface(status.getTypeface(), android.graphics.Typeface.BOLD);
         form.addView(status);
 
         dialog = builder.setTitle(R.string.setup_title).setView(scroll)
@@ -166,6 +167,7 @@ final class RadioSetupDialog {
                 : MeshtasticSetup.presetLabel(preset);
         presetButton.setText(activity.getString(R.string.setup_preset_value, presetText));
         presetButton.setEnabled(region != MeshtasticSetup.REGION_UNSET);
+        if (region != MeshtasticSetup.REGION_UNSET) status.setText("");
     }
 
     private void save() {
