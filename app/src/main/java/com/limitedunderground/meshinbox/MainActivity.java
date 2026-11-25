@@ -664,7 +664,7 @@ public final class MainActivity extends Activity {
         scroller.addView(inner);
         content.addView(scroller);
 
-        TextView version = label(getString(R.string.app_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+        TextView version = label(getString(R.string.app_version, BuildConfig.VERSION_NAME),
                 15, ink, true);
         inner.addView(version);
         Button feedback = button(getString(R.string.feedback_title), tint, ink);
@@ -721,7 +721,7 @@ public final class MainActivity extends Activity {
         diagnostics.addView(clear, withTop(4));
 
         LinearLayout about = settingsGroup(inner, "About MeshParty");
-        about.addView(label(getString(R.string.app_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+        about.addView(label(getString(R.string.app_version, BuildConfig.VERSION_NAME),
                 14, ink, true));
         about.addView(label(getString(R.string.independent_app), 14, ink, false), withTop(4));
         Button privacy = button(getString(R.string.privacy_policy), tint, ink);
