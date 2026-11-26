@@ -146,5 +146,20 @@
     <string name="setup_band_hint">Pick a region that matches the frequency band of your radio (shown on the radio or its box). A 915 MHz radio cannot use a 433 MHz region.</string>
     <string name="setup_band_title">Different frequency band</string>
     <string name="setup_band_confirm">Save anyway</string>
+    <string name="meshcore_setup_title">Set up MeshCore radio</string>
+    <string name="meshcore_setup_intro">Choose the radio preset for where you use this radio. Radios only hear each other on the same frequency, bandwidth, spreading factor and coding rate, so pick the one your local mesh uses.</string>
+    <string name="meshcore_setup_now">Now: %1$s</string>
+    <string name="meshcore_setup_band_hint">Pick a preset that matches the frequency band of your radio (shown on the radio or its box). A 915 MHz radio cannot use a 433 MHz preset.</string>
+    <string name="meshcore_setup_preset_title">Radio preset</string>
+    <string name="meshcore_setup_preset_value">Radio preset: %1$s</string>
+    <string name="meshcore_setup_keep">Keep current radio settings</string>
+    <string name="meshcore_setup_choose_preset">Choose a radio preset, or keep the current settings.</string>
+    <string name="meshcore_setup_name">Name others see (up to 31 bytes)</string>
+    <string name="meshcore_setup_advert_title">Announce this radio</string>
+    <string name="meshcore_setup_advert_value">Announce: %1$s</string>
+    <string name="meshcore_setup_advert_none">Not now</string>
+    <string name="meshcore_setup_advert_nearby">Nearby radios only (zero hop)</string>
+    <string name="meshcore_setup_advert_mesh">Whole mesh (flood through repeaters)</string>
+    <string name="meshcore_setup_rules">MeshParty never picks a preset for you. You are responsible for following the radio rules where you are. An announcement (advert) shares this radio\'s name and public key so others can add it as a contact.</string>
     <string name="setup_region_missing">No region set: this radio cannot transmit yet.</string>
 </resources>

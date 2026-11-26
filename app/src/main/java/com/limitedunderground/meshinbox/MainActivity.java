@@ -589,6 +589,14 @@ public final class MainActivity extends Activity {
                 configure.setOnClickListener(view -> showRadioSetup());
                 card.addView(configure, withTop(4));
             }
+            MeshCoreSetup.Current meshcore = network == Network.MESHCORE && service != null && state.ready()
+                    ? service.meshCoreSetup() : null;
+            if (meshcore != null) {
+                Button configure = button(getString(R.string.setup_button_change), tint, ink);
+                configure.setEnabled(!service.setupInProgress(network));
+                configure.setOnClickListener(view -> showMeshCoreSetup());
+                card.addView(configure, withTop(4));
+            }
             radioCards.addView(card, withTop(10));
         }
         radioCards.addView(label("Use a Bluetooth-enabled Meshtastic radio and a radio running MeshCore Bluetooth Companion firmware.",
@@ -745,6 +753,23 @@ public final class MainActivity extends Activity {
         setupDialog = RadioSetupDialog.create(this, setup, request -> {
             String problem = service == null ? "Connect the Meshtastic radio first."
                     : service.applyMeshtasticSetup(request);
+            if (problem == null) refresh();
+            return problem;
+        });
+        setupDialog.setOnDismissListener(closed -> setupDialog = null);
+        setupDialog.show();
+    }
+
+    private void showMeshCoreSetup() {
+        if (setupDialog != null || service == null) return;
+        MeshCoreSetup.Current setup = service.meshCoreSetup();
+        if (setup == null) {
+            notifyUser("Connect the MeshCore radio first.");
+            return;
+        }
+        setupDialog = MeshCoreSetupDialog.create(this, setup, request -> {
+            String problem = service == null ? "Connect the MeshCore radio first."
+                    : service.applyMeshCoreSetup(request);
             if (problem == null) refresh();
             return problem;
         });

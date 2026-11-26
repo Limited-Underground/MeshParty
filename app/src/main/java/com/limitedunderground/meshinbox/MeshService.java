@@ -384,7 +384,38 @@ public final class MeshService extends Service {
 
     /** True while MeshParty waits for the radio to confirm a setup change. */
     public boolean setupInProgress(Network network) {
-        return sessions.get(network).expectedSetup != null;
+        Session session = sessions.get(network);
+        return session.expectedSetup != null || session.expectedMeshCore != null;
+    }
+
+    /** The MeshCore radio's preset values and name, or null when it is not connected and synced. */
+    public MeshCoreSetup.Current meshCoreSetup() {
+        Session session = sessions.get(Network.MESHCORE);
+        if (!session.ready || !(session.protocol instanceof MeshCoreProtocol meshcore)) return null;
+        return meshcore.setupState();
+    }
+
+    /** Sends the preset, name and optional advert to the MeshCore radio. Returns a problem, or null once started. */
+    public String applyMeshCoreSetup(MeshCoreSetup.Request request) {
+        Session session = sessions.get(Network.MESHCORE);
+        if (!session.ready || !(session.protocol instanceof MeshCoreProtocol meshcore)) {
+            return "Connect the MeshCore radio first.";
+        }
+        if (session.expectedMeshCore != null) return "Radio setup is already running.";
+        try {
+            meshcore.applySetup(request);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            return error.getMessage() == null ? "The radio could not take these settings." : error.getMessage();
+        }
+        session.expectedMeshCore = request;
+        session.notice = "Sending settings to the radio…";
+        session.pendingSetupTimeout = () -> {
+            session.pendingSetupTimeout = null;
+            session.finishSetup("MeshParty could not confirm the new settings. Open Set up radio to check them.");
+        };
+        main.postDelayed(session.pendingSetupTimeout, SETUP_CONFIRM_TIMEOUT_MS);
+        publish();
+        return null;
     }
 
     /** Sends region, preset and names to the Meshtastic radio. Returns a problem, or null once started. */
@@ -596,6 +627,7 @@ public final class MeshService extends Service {
         private Runnable pendingSetupTimeout;
         private Runnable pendingSetupReadback;
         private MeshtasticSetup.Request expectedSetup;
+        private MeshCoreSetup.Request expectedMeshCore;
         private List<RadioProtocol.Destination> destinations = List.of();
 
         Session(Network network) {
@@ -775,6 +807,15 @@ public final class MeshService extends Service {
         }
 
         private void checkSetup() {
+            if (expectedMeshCore != null && protocol instanceof MeshCoreProtocol meshcore) {
+                MeshCoreSetup.Current current = meshcore.setupState();
+                if (!MeshCoreSetup.matches(current, expectedMeshCore)) {
+                    finishSetup("The radio did not keep the new settings. Open Set up radio to check them.");
+                    return;
+                }
+                finishSetup("Radio set up: " + MeshCoreSetup.describe(current) + ", name " + current.name() + ".");
+                return;
+            }
             if (expectedSetup == null || !(protocol instanceof MeshtasticProtocol meshtastic)) return;
             MeshtasticSetup.Current current = meshtastic.setupState();
             if (!MeshtasticSetup.matches(current, expectedSetup)) return;
@@ -784,6 +825,7 @@ public final class MeshService extends Service {
 
         private void finishSetup(String result) {
             expectedSetup = null;
+            expectedMeshCore = null;
             cancelSetupReadback();
             if (pendingSetupTimeout != null) {
                 main.removeCallbacks(pendingSetupTimeout);
@@ -801,7 +843,7 @@ public final class MeshService extends Service {
         }
 
         private void deactivate(String newStatus) {
-            if (expectedSetup != null) finishSetup("");
+            if (expectedSetup != null || expectedMeshCore != null) finishSetup("");
             active = false;
             previouslyReady = false;
             retryAttempt = 0;
