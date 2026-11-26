@@ -7,6 +7,7 @@ import android.os.SystemClock;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -15,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** MeshCore Companion Protocol text messaging over the Nordic UART BLE service. */
+/** MeshCore Companion Protocol text messaging and first-time setup over the Nordic UART BLE service. */
 public final class MeshCoreProtocol implements RadioProtocol {
     static final String UNKNOWN_CHANNEL_SENDER = "MeshCore sender";
     private static final UUID SERVICE = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
@@ -63,7 +64,10 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private static final long POLL_INTERVAL_MS = 30_000;
     private static final long MAX_ACK_WAIT_MS = 120_000;
 
-    private enum Operation { START, DEVICE, CONTACTS, CHANNEL, DRAIN, SEND_DIRECT, SEND_CHANNEL }
+    private enum Operation { START, DEVICE, CONTACTS, CHANNEL, DRAIN, SEND_DIRECT, SEND_CHANNEL,
+        SETUP_RADIO, SETUP_NAME, SETUP_ADVERT, SETUP_READ }
+
+    private record SetupStep(Operation operation, byte[] frame) {}
 
     private record Contact(Destination destination, String prefix, byte[] wirePrefix, boolean chat) {}
     private record Outgoing(Destination destination, byte[] text) {}
@@ -74,6 +78,9 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private final Map<Integer, Destination> channels = new LinkedHashMap<>();
     private final Map<String, Contact> contacts = new LinkedHashMap<>();
     private final Map<Integer, Long> expectedAcks = new HashMap<>();
+    private final ArrayDeque<SetupStep> setupSteps = new ArrayDeque<>();
+    private MeshCoreSetup.Current radioSetup;
+    private Boolean repeat;
     private Link link;
     private Events events;
     private Operation operation;
@@ -97,11 +104,15 @@ public final class MeshCoreProtocol implements RadioProtocol {
         close();
         this.link = link;
         this.events = events;
+        command(Operation.START, appStart());
+    }
+
+    private static byte[] appStart() {
         byte[] appName = "MeshParty".getBytes(StandardCharsets.UTF_8);
         byte[] frame = new byte[8 + appName.length];
         frame[0] = APP_START;
         System.arraycopy(appName, 0, frame, 8, appName.length);
-        command(Operation.START, frame);
+        return frame;
     }
 
     @Override
@@ -121,6 +132,49 @@ public final class MeshCoreProtocol implements RadioProtocol {
         channels.clear();
         contacts.clear();
         expectedAcks.clear();
+        setupSteps.clear();
+        radioSetup = null;
+        repeat = null;
+        selfInfo = new byte[0];
+    }
+
+    /** The radio's preset values and name, or null before the connection is ready. */
+    MeshCoreSetup.Current setupState() {
+        return ready ? radioSetup : null;
+    }
+
+    /**
+     * Queues the radio preset (if any), the name, a read-back and the optional advert. Each
+     * command waits for the radio's reply before the next one goes out.
+     */
+    void applySetup(MeshCoreSetup.Request request) {
+        if (!ready || link == null) throw new IllegalStateException("The MeshCore radio is still connecting.");
+        if (!setupSteps.isEmpty() || isSetup(operation)) throw new IllegalStateException("Radio setup is already running.");
+        String problem = MeshCoreSetup.validate(request, radioSetup);
+        if (problem != null) throw new IllegalArgumentException(problem);
+        if (request.preset() != null && (radioSetup == null || !radioSetup.matches(request.preset()))) {
+            setupSteps.add(new SetupStep(Operation.SETUP_RADIO, MeshCoreSetup.setRadio(request.preset(), repeat)));
+        }
+        if (radioSetup == null || !radioSetup.name().equals(request.name().trim())) {
+            setupSteps.add(new SetupStep(Operation.SETUP_NAME, MeshCoreSetup.setName(request.name())));
+        }
+        setupSteps.add(new SetupStep(Operation.SETUP_READ, appStart()));
+        if (request.advert() != MeshCoreSetup.Advert.NONE) {
+            setupSteps.add(new SetupStep(Operation.SETUP_ADVERT, MeshCoreSetup.advert(request.advert())));
+        }
+        runWork();
+    }
+
+    private static boolean isSetup(Operation value) {
+        return value == Operation.SETUP_RADIO || value == Operation.SETUP_NAME
+                || value == Operation.SETUP_ADVERT || value == Operation.SETUP_READ;
+    }
+
+    private void setupFailed(String reason) {
+        setupSteps.clear();
+        finishCommand();
+        if (events != null) events.setupFailed(reason);
+        runWork();
     }
 
     @Override
@@ -164,7 +218,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
             throw new IllegalArgumentException("MeshCore allows " + limit + " UTF-8 bytes for this destination.");
         }
         validateDestination(destination);
-        if (queuedSend != null || (operation != null && operation != Operation.DRAIN)) {
+        if (queuedSend != null || !setupSteps.isEmpty() || (operation != null && operation != Operation.DRAIN)) {
             throw new IllegalStateException("MeshCore is still processing a message. Try again shortly.");
         }
         queuedSend = new Outgoing(destination, bytes);
@@ -180,10 +234,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         switch (operation) {
             case START -> {
                 if (code != SELF_INFO || frame.length < 4 + PUBLIC_KEY_BYTES) return;
-                if (frame.length >= SELF_NAME_OFFSET) {
-                    int nameLength = nulTerminatedLength(frame, SELF_NAME_OFFSET, ADVERT_NAME_BYTES);
-                    maxChannelTextBytes = MAX_TEXT_BYTES - nameLength - 2;
-                }
+                readSelfInfo(frame);
                 finishCommand();
                 command(Operation.DEVICE, new byte[] { DEVICE_QUERY, PROTOCOL_VERSION });
             }
@@ -194,6 +245,8 @@ public final class MeshCoreProtocol implements RadioProtocol {
                     return;
                 }
                 channelCount = unsigned(frame[3]);
+                repeat = MeshCoreSetup.parseRepeat(frame);
+                if (radioSetup != null) radioSetup = MeshCoreSetup.parseSelfInfo(selfInfo, repeat);
                 finishCommand();
                 command(Operation.CONTACTS, new byte[] { GET_CONTACTS });
             }
@@ -238,7 +291,36 @@ public final class MeshCoreProtocol implements RadioProtocol {
                 events.notice("MeshCore radio accepted the channel message.");
                 runWork();
             }
+            case SETUP_RADIO, SETUP_NAME -> {
+                if (code != OK) return;
+                finishCommand();
+                runWork();
+            }
+            case SETUP_READ -> {
+                if (code != SELF_INFO || frame.length < 4 + PUBLIC_KEY_BYTES) return;
+                readSelfInfo(frame);
+                finishCommand();
+                if (events != null) events.setupChanged();
+                runWork();
+            }
+            case SETUP_ADVERT -> {
+                if (code != OK) return;
+                finishCommand();
+                events.notice("MeshCore radio sent its advert.");
+                runWork();
+            }
         }
+    }
+
+    private byte[] selfInfo = new byte[0];
+
+    private void readSelfInfo(byte[] frame) {
+        selfInfo = frame.clone();
+        if (frame.length >= SELF_NAME_OFFSET) {
+            int nameLength = nulTerminatedLength(frame, SELF_NAME_OFFSET, ADVERT_NAME_BYTES);
+            maxChannelTextBytes = MAX_TEXT_BYTES - nameLength - 2;
+        }
+        radioSetup = MeshCoreSetup.parseSelfInfo(frame, repeat);
     }
 
     private void queryNextChannel() {
@@ -264,6 +346,11 @@ public final class MeshCoreProtocol implements RadioProtocol {
 
     private void runWork() {
         if (!ready || operation != null) return;
+        if (!setupSteps.isEmpty()) {
+            SetupStep step = setupSteps.poll();
+            command(step.operation(), step.frame());
+            return;
+        }
         if (queuedSend != null) {
             Outgoing outgoing = queuedSend;
             queuedSend = null;
@@ -415,7 +502,13 @@ public final class MeshCoreProtocol implements RadioProtocol {
     }
 
     private void commandRejected(int error) {
-        if (operation == Operation.CHANNEL && error == NOT_FOUND) {
+        if (operation == Operation.SETUP_RADIO && error == 6) {
+            setupFailed(repeat == Boolean.TRUE
+                    ? "The radio refused these settings. It repeats messages for others, and this frequency is not allowed for repeating. Turn off repeat in the MeshCore app first."
+                    : "The radio refused these radio settings (error 6).");
+        } else if (isSetup(operation)) {
+            setupFailed("The radio refused the " + operationLabel() + " command (error " + error + ").");
+        } else if (operation == Operation.CHANNEL && error == NOT_FOUND) {
             finishCommand();
             nextChannel++;
             queryNextChannel();
@@ -449,6 +542,10 @@ public final class MeshCoreProtocol implements RadioProtocol {
     }
 
     private void commandTimedOut() {
+        if (isSetup(operation)) {
+            setupFailed("The radio did not answer the " + operationLabel() + " command.");
+            return;
+        }
         if (operation != null) fail("MeshCore radio did not respond to the " + operationLabel() + " command.");
     }
 
@@ -460,6 +557,10 @@ public final class MeshCoreProtocol implements RadioProtocol {
             case CHANNEL -> "channel lookup";
             case DRAIN -> "message retrieval";
             case SEND_DIRECT, SEND_CHANNEL -> "send message";
+            case SETUP_RADIO -> "radio settings";
+            case SETUP_NAME -> "name";
+            case SETUP_ADVERT -> "advert";
+            case SETUP_READ -> "settings read-back";
         };
     }
 
