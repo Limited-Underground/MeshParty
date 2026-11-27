@@ -105,7 +105,9 @@ final class RadioSetupDialog {
     }
 
     private void chooseRegion() {
-        List<MeshtasticSetup.Region> regions = MeshtasticSetup.REGIONS;
+        List<MeshtasticSetup.Region> regions = new ArrayList<>(MeshtasticSetup.REGIONS);
+        java.text.Collator collator = java.text.Collator.getInstance();
+        regions.sort((a, b) -> collator.compare(a.label(), b.label()));
         String[] titles = new String[regions.size()];
         int selected = -1;
         for (int i = 0; i < regions.size(); i++) {
@@ -137,7 +139,7 @@ final class RadioSetupDialog {
         }
         for (MeshtasticSetup.Preset option : presets) {
             if (preset != null && option.code() == preset) selected = titles.size();
-            titles.add(option.label());
+            titles.add(option.display());
         }
         int offset = keep ? 1 : 0;
         new AlertDialog.Builder(activity).setTitle(R.string.setup_preset_title)

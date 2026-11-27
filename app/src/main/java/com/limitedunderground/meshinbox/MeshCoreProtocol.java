@@ -148,8 +148,8 @@ public final class MeshCoreProtocol implements RadioProtocol {
      * command waits for the radio's reply before the next one goes out.
      */
     void applySetup(MeshCoreSetup.Request request) {
-        if (!ready || link == null) throw new IllegalStateException("The MeshCore radio is still connecting.");
-        if (!setupSteps.isEmpty() || isSetup(operation)) throw new IllegalStateException("Radio setup is already running.");
+        if (!ready || link == null) throw new IllegalStateException(Text.t("text_mc_connecting", "The MeshCore radio is still connecting."));
+        if (!setupSteps.isEmpty() || isSetup(operation)) throw new IllegalStateException(Text.t("text_setup_running", "Radio setup is already running."));
         String problem = MeshCoreSetup.validate(request, radioSetup);
         if (problem != null) throw new IllegalArgumentException(problem);
         if (request.preset() != null && (radioSetup == null || !radioSetup.matches(request.preset()))) {
@@ -207,19 +207,19 @@ public final class MeshCoreProtocol implements RadioProtocol {
 
     @Override
     public void send(Destination destination, String text) {
-        if (!ready) throw new IllegalStateException("The MeshCore radio is still connecting.");
+        if (!ready) throw new IllegalStateException(Text.t("text_mc_connecting", "The MeshCore radio is still connecting."));
         if (text == null || text.trim().isEmpty() || text.indexOf('\0') >= 0) {
-            throw new IllegalArgumentException("Enter a text message without null characters.");
+            throw new IllegalArgumentException(Text.t("text_mc_no_null", "Enter a text message without null characters."));
         }
-        if (destination == null) throw new IllegalArgumentException("Choose a MeshCore destination.");
+        if (destination == null) throw new IllegalArgumentException(Text.t("text_mc_choose_destination", "Choose a MeshCore destination."));
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         int limit = destination.channel() ? maxChannelTextBytes : MAX_TEXT_BYTES;
         if (bytes.length > limit) {
-            throw new IllegalArgumentException("MeshCore allows " + limit + " UTF-8 bytes for this destination.");
+            throw new IllegalArgumentException(Text.t("text_mc_limit", "MeshCore allows %1$d UTF-8 bytes for this destination.", limit));
         }
         validateDestination(destination);
         if (queuedSend != null || !setupSteps.isEmpty() || (operation != null && operation != Operation.DRAIN)) {
-            throw new IllegalStateException("MeshCore is still processing a message. Try again shortly.");
+            throw new IllegalStateException(Text.t("text_mc_busy", "MeshCore is still processing a message. Try again shortly."));
         }
         queuedSend = new Outgoing(destination, bytes);
         runWork();
@@ -241,7 +241,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
             case DEVICE -> {
                 if (code != DEVICE_INFO) return;
                 if (frame.length < 4 || unsigned(frame[1]) < PROTOCOL_VERSION) {
-                    fail("MeshCore Companion protocol version 3 or later is required.");
+                    fail(Text.t("text_mc_version", "MeshCore Companion protocol version 3 or later is required."));
                     return;
                 }
                 channelCount = unsigned(frame[3]);
@@ -282,13 +282,13 @@ public final class MeshCoreProtocol implements RadioProtocol {
                     expectedAcks.put(ack, SystemClock.elapsedRealtime() + wait);
                 }
                 finishCommand();
-                events.notice("MeshCore radio accepted the direct message.");
+                events.notice(Text.t("text_mc_direct_accepted", "MeshCore radio accepted the direct message."));
                 runWork();
             }
             case SEND_CHANNEL -> {
                 if (code != OK) return;
                 finishCommand();
-                events.notice("MeshCore radio accepted the channel message.");
+                events.notice(Text.t("text_mc_channel_accepted", "MeshCore radio accepted the channel message."));
                 runWork();
             }
             case SETUP_RADIO, SETUP_NAME -> {
@@ -306,7 +306,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
             case SETUP_ADVERT -> {
                 if (code != OK) return;
                 finishCommand();
-                events.notice("MeshCore radio sent its advert.");
+                events.notice(Text.t("text_mc_advert_sent", "MeshCore radio sent its advert."));
                 runWork();
             }
         }
@@ -358,7 +358,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
                 sendMessage(outgoing);
                 return;
             }
-            events.notice("MeshCore destination changed before the message could be sent.");
+            events.notice(Text.t("text_mc_destination_changed", "MeshCore destination changed before the message could be sent."));
         }
         if (waitingMessages && ready && operation == null) {
             waitingMessages = false;
@@ -420,7 +420,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         Destination replyTo = contact != null && contact.chat() ? contact.destination() : null;
         String senderId = contact == null ? null : contact.destination().id();
         long time = Integer.toUnsignedLong(readInt(frame, timestampOffset)) * 1_000;
-        events.message(replyTo, senderId, replyTo == null ? "Contact " + prefix : replyTo.label(), body, time);
+        events.message(replyTo, senderId, replyTo == null ? Text.t("text_mc_contact", "Contact %1$s", prefix) : replyTo.label(), body, time);
     }
 
     private void receiveChannel(byte[] frame, int offset) {
@@ -447,7 +447,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         String prefix = hex(frame, 1, KEY_PREFIX_BYTES);
         String label = readString(frame, CONTACT_NAME_OFFSET, ADVERT_NAME_BYTES);
         boolean chat = unsigned(frame[1 + PUBLIC_KEY_BYTES]) == CHAT_CONTACT;
-        Destination destination = new Destination(key, label.trim().isEmpty() ? "Contact " + prefix : label, false);
+        Destination destination = new Destination(key, label.trim().isEmpty() ? Text.t("text_mc_contact", "Contact %1$s", prefix) : label, false);
         byte[] wirePrefix = new byte[KEY_PREFIX_BYTES];
         System.arraycopy(frame, 1, wirePrefix, 0, KEY_PREFIX_BYTES);
         contacts.put(key, new Contact(destination, prefix, wirePrefix, chat));
@@ -474,7 +474,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
 
     private void validateDestination(Destination destination) {
         if (!destinationIsCurrent(destination)) {
-            throw new IllegalArgumentException("Choose an available MeshCore channel or contact.");
+            throw new IllegalArgumentException(Text.t("text_mc_choose_channel_contact", "Choose an available MeshCore channel or contact."));
         }
     }
 
@@ -489,7 +489,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         if (frame.length < 9) return;
         removeExpiredAcks();
         if (expectedAcks.remove(readInt(frame, 1)) != null) {
-            events.notice("The MeshCore recipient acknowledged a direct message.");
+            events.notice(Text.t("text_mc_recipient_ack", "The MeshCore recipient acknowledged a direct message."));
         }
     }
 
@@ -504,20 +504,20 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private void commandRejected(int error) {
         if (operation == Operation.SETUP_RADIO && error == 6) {
             setupFailed(repeat == Boolean.TRUE
-                    ? "The radio refused these settings. It repeats messages for others, and this frequency is not allowed for repeating. Turn off repeat in the MeshCore app first."
-                    : "The radio refused these radio settings (error 6).");
+                    ? Text.t("text_mc_repeat_refused", "The radio refused these settings. It repeats messages for others, and this frequency is not allowed for repeating. Turn off repeat in the MeshCore app first.")
+                    : Text.t("text_mc_radio_refused", "The radio refused these radio settings (error 6)."));
         } else if (isSetup(operation)) {
-            setupFailed("The radio refused the " + operationLabel() + " command (error " + error + ").");
+            setupFailed(Text.t("text_setup_command_refused", "The radio refused the %1$s command (error %2$d).", operationLabel(), error));
         } else if (operation == Operation.CHANNEL && error == NOT_FOUND) {
             finishCommand();
             nextChannel++;
             queryNextChannel();
         } else if (operation == Operation.SEND_DIRECT || operation == Operation.SEND_CHANNEL) {
             finishCommand();
-            events.notice("MeshCore radio rejected the message (error " + error + ").");
+            events.notice(Text.t("text_mc_message_rejected", "MeshCore radio rejected the message (error %1$d).", error));
             runWork();
         } else {
-            fail("MeshCore radio rejected the " + operationLabel() + " command (error " + error + ").");
+            fail(Text.t("text_mc_command_rejected", "MeshCore radio rejected the %1$s command (error %2$d).", operationLabel(), error));
         }
     }
 
@@ -527,7 +527,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         try {
             link.write(frame);
         } catch (IllegalStateException | IllegalArgumentException exception) {
-            fail("Could not send the MeshCore " + operationLabel() + " command.");
+            fail(Text.t("text_mc_command_not_sent", "Could not send the MeshCore %1$s command.", operationLabel()));
         }
     }
 
@@ -543,24 +543,24 @@ public final class MeshCoreProtocol implements RadioProtocol {
 
     private void commandTimedOut() {
         if (isSetup(operation)) {
-            setupFailed("The radio did not answer the " + operationLabel() + " command.");
+            setupFailed(Text.t("text_setup_no_answer", "The radio did not answer the %1$s command.", operationLabel()));
             return;
         }
-        if (operation != null) fail("MeshCore radio did not respond to the " + operationLabel() + " command.");
+        if (operation != null) fail(Text.t("text_mc_no_response", "MeshCore radio did not respond to the %1$s command.", operationLabel()));
     }
 
     private String operationLabel() {
         return switch (operation) {
-            case START -> "app start";
-            case DEVICE -> "device information";
-            case CONTACTS -> "contact list";
-            case CHANNEL -> "channel lookup";
-            case DRAIN -> "message retrieval";
-            case SEND_DIRECT, SEND_CHANNEL -> "send message";
-            case SETUP_RADIO -> "radio settings";
-            case SETUP_NAME -> "name";
-            case SETUP_ADVERT -> "advert";
-            case SETUP_READ -> "settings read-back";
+            case START -> Text.t("text_mc_op_start", "app start");
+            case DEVICE -> Text.t("text_mc_op_device", "device information");
+            case CONTACTS -> Text.t("text_mc_op_contacts", "contact list");
+            case CHANNEL -> Text.t("text_mc_op_channel", "channel lookup");
+            case DRAIN -> Text.t("text_mc_op_drain", "message retrieval");
+            case SEND_DIRECT, SEND_CHANNEL -> Text.t("text_mc_op_send", "send message");
+            case SETUP_RADIO -> Text.t("text_mc_op_radio", "radio settings");
+            case SETUP_NAME -> Text.t("text_mc_op_name", "name");
+            case SETUP_ADVERT -> Text.t("text_mc_op_advert", "advert");
+            case SETUP_READ -> Text.t("text_mc_op_read", "settings read-back");
         };
     }
 

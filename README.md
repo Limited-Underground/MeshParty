@@ -10,7 +10,7 @@ MeshParty is an independent alternative for using both networks from one screen.
 2. In **Radios**, choose each radio separately and grant **Nearby devices** access when Android asks. Wait for both status indicators to read **Connected**.
 3. A new Meshtastic radio has no region and does not transmit until one is set. On the Meshtastic card in **Radios**, tap **Set up radio**, choose your region (MeshParty never picks one for you), and optionally change the modem preset and the radio's long and short names. MeshParty reads the settings back to confirm them; the radio may restart and reconnect while it does.
 4. In **Messages**, choose a destination beside each send button. Type a message and tap the button for the network you want. The **Reply** action selects the corresponding destination for an incoming message.
-5. In **Settings**, choose the theme, default inbox, message alerts, Bluetooth reconnect, and optional channel-send confirmation. On Android 13 and newer, Android notification permission is required for message alerts.
+5. In **Settings**, choose the language (English, Spanish, Italian, French, German, Croatian, Serbian in Latin or Cyrillic, Russian or Ukrainian; the translations are unreviewed drafts, see [docs/LANGUAGES.md](docs/LANGUAGES.md)), the theme, default inbox, message alerts, Bluetooth reconnect, and optional channel-send confirmation. On Android 13 and newer, Android notification permission is required for message alerts.
 
 ## Build locally
 
@@ -21,6 +21,8 @@ Use JDK 17 and an Android SDK with Platform 36 installed. Set `ANDROID_HOME` to 
 ~~~
 
 On Windows, run `.\gradlew.bat :app:assembleDebug :app:lintDebug` in PowerShell. The debug APK is written to `app/build/outputs/apk/debug/` by default. To keep generated output outside the source tree, pass `--project-cache-dir` and `-PmeshPartyBuildRoot` with paths on your workstation.
+
+`./gradlew :app:testDebugUnitTest` runs the language layout check (Robolectric; the first run downloads Android runtime files). The plain-Java checks in `tests/host` compile with `javac -encoding UTF-8` against the debug classes and `android.jar`.
 
 For Google Play testing, see [Google Play internal testing](docs/PLAY-INTERNAL-TESTING.md). For local reporting tests or to configure your own reporting service, see [report-service/README.md](report-service/README.md).
 

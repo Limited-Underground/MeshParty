@@ -132,20 +132,20 @@ final class MeshtasticProtocol implements RadioProtocol {
         try {
             receive(Proto.parse(frame));
         } catch (MalformedProtobuf ignored) {
-            events.notice("Meshtastic returned an unreadable packet.");
+            events.notice(Text.t("text_mt_unreadable", "Meshtastic returned an unreadable packet."));
         }
         if (link != null) link.read();
     }
 
     private void receive(Proto frame) throws MalformedProtobuf {
         if (frame.number(8) != 0) {
-            fail("The Meshtastic radio restarted.");
+            fail(Text.t("text_mt_restarted", "The Meshtastic radio restarted."));
             return;
         }
         if (frame.contains(18)) {
             long lockdown = frame.message(18).number(1);
             if (lockdown != 3 && lockdown != 5) {
-                fail("This Meshtastic radio requires a compatible authenticated client.");
+                fail(Text.t("text_mt_lockdown", "This Meshtastic radio requires a compatible authenticated client."));
             }
             return;
         }
@@ -167,7 +167,7 @@ final class MeshtasticProtocol implements RadioProtocol {
             updateChannel(frame.message(10));
         } else if (!ready && frame.number(7) == configurationNonce) {
             if (!isNode(ownNode)) {
-                fail("The Meshtastic radio did not report a usable local node.");
+                fail(Text.t("text_mt_no_node", "The Meshtastic radio did not report a usable local node."));
                 return;
             }
             ready = true;
@@ -178,7 +178,7 @@ final class MeshtasticProtocol implements RadioProtocol {
         } else if (ready && frame.contains(11)) {
             Proto queue = frame.message(11);
             if (queue.number(1) != 0 && pending.remove(queue.number(4)) != null) {
-                events.notice("The Meshtastic radio rejected a queued message.");
+                events.notice(Text.t("text_mt_queue_rejected", "The Meshtastic radio rejected a queued message."));
             }
         }
     }
@@ -222,7 +222,7 @@ final class MeshtasticProtocol implements RadioProtocol {
         channels.forEach((index, channel) -> {
             String name = channel.name();
             if (name.trim().isEmpty()) {
-                name = channel.primary() && presetName != null ? presetName : "Channel " + index;
+                name = channel.primary() && presetName != null ? presetName : Text.t("text_channel_number", "Channel %1$d", index);
             }
             String id = channelId(index);
             Destination destination = new Destination(id, name, true);
@@ -307,9 +307,9 @@ final class MeshtasticProtocol implements RadioProtocol {
             if (error == 0) return;
             adminRequests.remove(requestId);
             if (error == ADMIN_BAD_SESSION_KEY) {
-                failSetup("The radio refused the settings because its session key expired. Try again.");
+                failSetup(Text.t("text_setup_key_expired", "The radio refused the settings because its session key expired. Try again."));
             } else {
-                failSetup("The radio refused the settings (routing code " + error + ").");
+                failSetup(Text.t("text_setup_refused_code", "The radio refused the settings (routing code %1$d).", error));
             }
             return;
         }
@@ -321,13 +321,13 @@ final class MeshtasticProtocol implements RadioProtocol {
         if (error == 0 && route.number() != BROADCAST && from != route.number()) return;
         pending.remove(requestId);
         if (error != 0) {
-            events.notice("Meshtastic reported a send failure (routing code " + error + ").");
+            events.notice(Text.t("text_mt_send_failed", "Meshtastic reported a send failure (routing code %1$d).", error));
         } else if (route.number() == BROADCAST) {
-            events.notice("Meshtastic reported a channel relay acknowledgement.");
+            events.notice(Text.t("text_mt_relay_ack", "Meshtastic reported a channel relay acknowledgement."));
         } else if (proof == 1) {
-            events.notice("Meshtastic verified the recipient's acknowledgement.");
+            events.notice(Text.t("text_mt_verified_ack", "Meshtastic verified the recipient's acknowledgement."));
         } else {
-            events.notice("Meshtastic reported an acknowledgement.");
+            events.notice(Text.t("text_mt_ack", "Meshtastic reported an acknowledgement."));
         }
     }
 
@@ -349,12 +349,12 @@ final class MeshtasticProtocol implements RadioProtocol {
      * so the change is built on its latest values and carries the session key it returns.
      */
     void applySetup(MeshtasticSetup.Request request) {
-        if (!ready || link == null) throw new IllegalStateException("Meshtastic is not connected.");
+        if (!ready || link == null) throw new IllegalStateException(Text.t("text_mt_not_connected", "Meshtastic is not connected."));
         MeshtasticSetup.Current current = setupState();
-        if (current == null) throw new IllegalStateException("The radio has not reported its settings yet.");
+        if (current == null) throw new IllegalStateException(Text.t("text_setup_not_reported", "The radio has not reported its settings yet."));
         String problem = MeshtasticSetup.validate(request, current.regionRules());
         if (problem != null) throw new IllegalArgumentException(problem);
-        if (setupStep == SetupStep.AWAITING_KEY) throw new IllegalStateException("Radio setup is already running.");
+        if (setupStep == SetupStep.AWAITING_KEY) throw new IllegalStateException(Text.t("text_setup_running", "Radio setup is already running."));
         setupRequest = request;
         setupStep = SetupStep.AWAITING_KEY;
         sendAdmin(new ProtoWriter().varintField(5, LORA_CONFIG_TYPE).bytes(), true);
@@ -391,14 +391,14 @@ final class MeshtasticProtocol implements RadioProtocol {
         MeshtasticSetup.Request request = setupRequest;
         MeshtasticSetup.Current current = setupState();
         if (request == null || current == null) {
-            failSetup("The radio did not report its settings.");
+            failSetup(Text.t("text_setup_no_settings", "The radio did not report its settings."));
             return;
         }
         byte[] lora = MeshtasticSetup.withoutFields(loraConfig,
                 request.preset() == null ? Set.of(7) : Set.of(1, 2, 7));
         byte[] user = MeshtasticSetup.withoutFields(ownUser, Set.of(2, 3));
         if (lora == null || user == null) {
-            failSetup("The radio reported settings MeshParty cannot edit safely.");
+            failSetup(Text.t("text_setup_cannot_edit", "The radio reported settings MeshParty cannot edit safely."));
             return;
         }
         ProtoWriter newLora = new ProtoWriter().raw(lora).varintField(7, request.region());
@@ -422,7 +422,7 @@ final class MeshtasticProtocol implements RadioProtocol {
             }
             sendAdmin(new ProtoWriter().varintField(65, 1).bytes(), false);
         } catch (IllegalArgumentException | IllegalStateException error) {
-            failSetup(error.getMessage() == null ? "The settings could not be sent." : error.getMessage());
+            failSetup(error.getMessage() == null ? Text.t("text_setup_send_failed", "The settings could not be sent.") : error.getMessage());
             return;
         }
         setupStep = SetupStep.SENT;
@@ -455,7 +455,7 @@ final class MeshtasticProtocol implements RadioProtocol {
     private void updateLora(byte[] lora) throws MalformedProtobuf {
         Proto parsed = Proto.parse(lora);
         loraConfig = lora;
-        presetName = parsed.number(1) == 0 ? "Custom" : presetLabel(parsed.number(2));
+        presetName = parsed.number(1) == 0 ? Text.t("text_mt_custom", "Custom") : presetLabel(parsed.number(2));
         if (ready) {
             publishDestinations();
             if (events != null) events.setupChanged();
@@ -481,14 +481,14 @@ final class MeshtasticProtocol implements RadioProtocol {
 
     @Override
     public void send(Destination destination, String text) {
-        if (!ready || link == null) throw new IllegalStateException("Meshtastic is not connected.");
+        if (!ready || link == null) throw new IllegalStateException(Text.t("text_mt_not_connected", "Meshtastic is not connected."));
         Route route = destination == null ? null : routes.get(destination.id());
         if (route == null || !route.destination().equals(destination)) {
-            throw new IllegalArgumentException("Choose an available Meshtastic destination.");
+            throw new IllegalArgumentException(Text.t("text_mt_choose_destination", "Choose an available Meshtastic destination."));
         }
         byte[] content = text.getBytes(StandardCharsets.UTF_8);
         if (text.trim().isEmpty() || content.length > TEXT_LIMIT) {
-            throw new IllegalArgumentException("Enter a message of up to " + TEXT_LIMIT + " UTF-8 bytes.");
+            throw new IllegalArgumentException(Text.t("text_message_limit", "Enter a message of up to %1$d UTF-8 bytes.", TEXT_LIMIT));
         }
 
         long id;

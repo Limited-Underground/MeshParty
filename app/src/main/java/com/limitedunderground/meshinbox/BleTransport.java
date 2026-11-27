@@ -45,7 +45,7 @@ public final class BleTransport implements RadioProtocol.Link {
     // A read has no frame. Each write and each delivered read/notification is one protocol frame.
     private record Operation(byte[] frame) {
         boolean isRead() { return frame == null; }
-        String description() { return isRead() ? "Reading from the radio" : "Writing to the radio"; }
+        String description() { return isRead() ? Text.t("text_ble_reading", "Reading from the radio") : Text.t("text_ble_writing", "Writing to the radio"); }
     }
 
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
@@ -58,7 +58,6 @@ public final class BleTransport implements RadioProtocol.Link {
     private static final long OPERATION_TIMEOUT_MS = 12_000;
     private static final long FIRST_OPERATION_TIMEOUT_MS = 45_000;
     private static final int START_FAILED_WITHOUT_STATUS = -1;
-    private static final String CONNECT_PERMISSION_MESSAGE = "Allow Nearby devices permission to connect to this radio.";
 
     private final Context context;
     private final RadioProtocol protocol;
@@ -92,15 +91,15 @@ public final class BleTransport implements RadioProtocol.Link {
         try {
             gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE);
         } catch (SecurityException error) {
-            failSetup(CONNECT_PERMISSION_MESSAGE);
+            failSetup(Text.t("text_ble_permission", "Allow Nearby devices permission to connect to this radio."));
             return;
         }
         if (gatt == null) {
             MeshDiagnostics.record(Event.GATT_CONNECT_FAILED, radio);
-            fail("Android could not start the Bluetooth connection.");
+            fail(Text.t("text_ble_start_failed", "Android could not start the Bluetooth connection."));
             return;
         }
-        armTimeout(CONNECT_TIMEOUT_MS, "Connecting to the radio timed out.");
+        armTimeout(CONNECT_TIMEOUT_MS, Text.t("text_ble_connect_timeout", "Connecting to the radio timed out."));
     }
 
     /** Releases this connection and discards its operations after an explicit disconnect. */
@@ -134,8 +133,7 @@ public final class BleTransport implements RadioProtocol.Link {
         requireQueueSpace();
         int maxFrame = Math.min(MAX_CHARACTERISTIC_VALUE, attMtu - ATT_HEADER_SIZE);
         if (frame.length == 0 || frame.length > maxFrame) {
-            throw new IllegalArgumentException("This Bluetooth connection supports frames up to "
-                + maxFrame + " bytes. Shorten the message or reconnect the radio.");
+            throw new IllegalArgumentException(Text.t("text_ble_frame_limit", "This Bluetooth connection supports frames up to %1$d bytes. Shorten the message or reconnect the radio.", maxFrame));
         }
         pending.addLast(new Operation(frame.clone()));
         main.post(this::pump);
@@ -144,15 +142,15 @@ public final class BleTransport implements RadioProtocol.Link {
     @Override
     public void read() {
         requireQueueSpace();
-        if (rx == null) throw new IllegalStateException("This radio delivers frames by notification.");
+        if (rx == null) throw new IllegalStateException(Text.t("text_ble_notification_only", "This radio delivers frames by notification."));
         pending.addLast(new Operation(null));
         main.post(this::pump);
     }
 
     private void requireQueueSpace() {
-        if (stage != Stage.READY) throw new IllegalStateException("The Bluetooth radio is disconnected.");
+        if (stage != Stage.READY) throw new IllegalStateException(Text.t("text_ble_disconnected", "The Bluetooth radio is disconnected."));
         if (pending.size() >= MAX_PENDING_OPERATIONS) {
-            throw new IllegalStateException("The Bluetooth radio is busy. Try again in a moment.");
+            throw new IllegalStateException(Text.t("text_ble_busy", "The Bluetooth radio is busy. Try again in a moment."));
         }
     }
 
@@ -183,22 +181,22 @@ public final class BleTransport implements RadioProtocol.Link {
                 discoverServices();
                 return;
             }
-            armTimeout(OPERATION_TIMEOUT_MS, "Negotiating Bluetooth packet size timed out.");
+            armTimeout(OPERATION_TIMEOUT_MS, Text.t("text_ble_mtu_timeout", "Negotiating Bluetooth packet size timed out."));
         } catch (SecurityException error) {
-            failSetup(CONNECT_PERMISSION_MESSAGE);
+            failSetup(Text.t("text_ble_permission", "Allow Nearby devices permission to connect to this radio."));
         }
     }
 
     private void discoverServices() {
         stage = Stage.DISCOVERING;
-        startOperation("Discovering the radio's Bluetooth services", OPERATION_TIMEOUT_MS,
+        startOperation(Text.t("text_ble_discovering", "Discovering the radio's Bluetooth services"), OPERATION_TIMEOUT_MS,
             Event.GATT_DISCOVERY_FAILED, () -> startStatus(gatt.discoverServices()));
     }
 
     private void subscribe() {
         BluetoothGattService service = gatt.getService(protocol.serviceId());
         if (service == null) {
-            failSetup("This device does not expose the selected radio's Bluetooth service.");
+            failSetup(Text.t("text_ble_no_service", "This device does not expose the selected radio's Bluetooth service."));
             return;
         }
         tx = service.getCharacteristic(protocol.writeId());
@@ -206,7 +204,7 @@ public final class BleTransport implements RadioProtocol.Link {
         if (!protocol.framesInNotifications()) rx = service.getCharacteristic(protocol.readId());
         if (tx == null || notification == null || (!protocol.framesInNotifications()
             && (rx == null || (rx.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) == 0))) {
-            failSetup("The radio's Bluetooth service is missing a messaging characteristic.");
+            failSetup(Text.t("text_ble_no_characteristic", "The radio's Bluetooth service is missing a messaging characteristic."));
             return;
         }
         int writeProperties = tx.getProperties();
@@ -215,7 +213,7 @@ public final class BleTransport implements RadioProtocol.Link {
         } else if ((writeProperties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
             writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
         } else {
-            failSetup("The radio's Bluetooth messaging characteristic does not accept writes.");
+            failSetup(Text.t("text_ble_no_write", "The radio's Bluetooth messaging characteristic does not accept writes."));
             return;
         }
 
@@ -231,10 +229,10 @@ public final class BleTransport implements RadioProtocol.Link {
         }
         stage = Stage.SUBSCRIBING;
         if (descriptor == null || subscription == null) {
-            failSetup("The radio's Bluetooth messaging notifications are unavailable.");
+            failSetup(Text.t("text_ble_no_notify", "The radio's Bluetooth messaging notifications are unavailable."));
             return;
         }
-        startOperation("Subscribing to radio notifications", FIRST_OPERATION_TIMEOUT_MS,
+        startOperation(Text.t("text_ble_subscribing", "Subscribing to radio notifications"), FIRST_OPERATION_TIMEOUT_MS,
             Event.GATT_SUBSCRIPTION_FAILED, () -> gatt.setCharacteristicNotification(notification, true)
                 ? enableNotifications(descriptor, subscription) : START_FAILED_WITHOUT_STATUS);
     }
@@ -257,12 +255,12 @@ public final class BleTransport implements RadioProtocol.Link {
             if (status != BluetoothStatusCodes.SUCCESS) {
                 if (status == START_FAILED_WITHOUT_STATUS) MeshDiagnostics.record(failureEvent, radio);
                 else MeshDiagnostics.record(failureEvent, radio, status);
-                fail(description + " could not start.");
+                fail(Text.t("text_ble_could_not_start", "%1$s could not start.", description));
                 return;
             }
-            armTimeout(timeout, description + " timed out.");
+            armTimeout(timeout, Text.t("text_ble_timed_out", "%1$s timed out.", description));
         } catch (SecurityException error) {
-            failSetup(CONNECT_PERMISSION_MESSAGE);
+            failSetup(Text.t("text_ble_permission", "Allow Nearby devices permission to connect to this radio."));
         }
     }
 
@@ -300,9 +298,9 @@ public final class BleTransport implements RadioProtocol.Link {
     private String statusReason(String action, int status) {
         if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION
             || status == BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION) {
-            return "Bluetooth authentication failed. Pair this radio with Android and retry.";
+            return Text.t("text_ble_auth_failed", "Bluetooth authentication failed. Pair this radio with Android and retry.");
         }
-        return action + " (Bluetooth status " + status + ").";
+        return Text.t("text_ble_status", "%1$s (Bluetooth status %2$d).", action, status);
     }
 
     private void finishOperation(BluetoothGatt source, BluetoothGattCharacteristic characteristic,
@@ -311,7 +309,7 @@ public final class BleTransport implements RadioProtocol.Link {
             || !(read ? rx : tx).getUuid().equals(characteristic.getUuid())) return;
         if (status != BluetoothGatt.GATT_SUCCESS) {
             MeshDiagnostics.record(read ? Event.GATT_READ_FAILED : Event.GATT_WRITE_FAILED, radio, status);
-            fail(statusReason(active.description() + " failed", status));
+            fail(statusReason(Text.t("text_ble_failed", "%1$s failed", active.description()), status));
             return;
         }
         active = null;
@@ -339,7 +337,7 @@ public final class BleTransport implements RadioProtocol.Link {
                 if (failed || newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Event event = stage == Stage.CONNECTING ? Event.GATT_CONNECT_FAILED : Event.GATT_DISCONNECTED;
                     MeshDiagnostics.record(event, radio, status);
-                    fail(failed ? statusReason("The Bluetooth connection ended", status) : "The Bluetooth radio disconnected.");
+                    fail(failed ? statusReason(Text.t("text_ble_connection_ended", "The Bluetooth connection ended"), status) : Text.t("text_ble_radio_disconnected", "The Bluetooth radio disconnected."));
                 } else if (newState == BluetoothProfile.STATE_CONNECTED && stage == Stage.CONNECTING) {
                     MeshDiagnostics.record(Event.GATT_CONNECTED, radio);
                     negotiateMtu();
@@ -370,7 +368,7 @@ public final class BleTransport implements RadioProtocol.Link {
                     subscribe();
                 } else {
                     MeshDiagnostics.record(Event.GATT_DISCOVERY_FAILED, radio, status);
-                    fail(statusReason("Could not discover the radio's Bluetooth services", status));
+                    fail(statusReason(Text.t("text_ble_discover_failed", "Could not discover the radio's Bluetooth services"), status));
                 }
             });
         }
@@ -382,7 +380,7 @@ public final class BleTransport implements RadioProtocol.Link {
                     || !notification.getUuid().equals(descriptor.getCharacteristic().getUuid())) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     MeshDiagnostics.record(Event.GATT_SUBSCRIPTION_FAILED, radio, status);
-                    fail(statusReason("Could not subscribe to radio notifications", status));
+                    fail(statusReason(Text.t("text_ble_subscribe_failed", "Could not subscribe to radio notifications"), status));
                     return;
                 }
                 disarmTimeout();
@@ -429,7 +427,7 @@ public final class BleTransport implements RadioProtocol.Link {
             main.post(() -> {
                 if (source == gatt && stage == Stage.READY) {
                     MeshDiagnostics.record(Event.GATT_SETUP_FAILED, radio, Stage.DISCOVERING.diagnosticCode);
-                    fail("The radio's Bluetooth services changed. Reconnect the radio.");
+                    fail(Text.t("text_ble_services_changed", "The radio's Bluetooth services changed. Reconnect the radio."));
                 }
             });
         }

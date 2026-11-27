@@ -117,7 +117,7 @@ final class ChatModeration {
         SenderKey key = new SenderKey(message.network(), message.senderId());
         if (blocked.containsKey(key)) return false;
         blocked.put(key, new BlockedSender(key.network(), key.id(),
-                displayLabel(message.author(), "Unknown sender")));
+                displayLabel(message.author(), Text.t("text_unknown_sender", "Unknown sender"))));
         saveBlocked();
         return true;
     }
@@ -153,7 +153,7 @@ final class ChatModeration {
         ChannelKey key = new ChannelKey(message.network(), message.radioAddress(), target.id());
         if (muted.containsKey(key)) return false;
         muted.put(key, new MutedChannel(key.network(), key.radioAddress(), key.id(),
-                displayLabel(target.label(), "Unknown channel")));
+                displayLabel(target.label(), Text.t("text_unknown_channel", "Unknown channel"))));
         saveMuted();
         return true;
     }

@@ -77,7 +77,7 @@ public final class MeshCoreSetupTest {
         check(problem(USA, " ", current).equals("Enter a name for this radio."), "name required");
         check(problem(USA, "x".repeat(32), current).contains("31 bytes"), "name byte limit");
         check(problem(USA, "é".repeat(15) + "x", current) == null, "31 UTF-8 bytes accepted");
-        check(problem(new MeshCoreSetup.Preset("Mine", 433_000, 62_500, 8, 8), "Base", current)
+        check(problem(new MeshCoreSetup.Preset(null, "Mine", 433_000, 62_500, 8, 8), "Base", current)
                 .equals("Choose a listed preset."), "only listed presets");
         check(MeshCoreSetup.matches(MeshCoreSetup.parseSelfInfo(selfInfo(910_525, 62_500, 7, 5, "Base"), null),
                 new MeshCoreSetup.Request(USA, " Base ", MeshCoreSetup.Advert.NEARBY)), "read-back match");

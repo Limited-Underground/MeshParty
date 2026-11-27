@@ -119,10 +119,10 @@ public final class RadioPicker {
         content.addView(devices, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, listHeight));
 
-        dialog = builder.setTitle("Choose " + network.label() + " radio")
+        dialog = builder.setTitle(activity.getString(R.string.picker_title, network.label()))
                 .setView(content)
-                .setNegativeButton("Cancel", null)
-                .setNeutralButton("Scan again", null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setNeutralButton(R.string.picker_scan_again, null)
                 .create();
         dialog.setOnDismissListener(dismissed -> {
             if (dialog == dismissed) {
@@ -266,7 +266,7 @@ public final class RadioPicker {
                 return;
             }
         }
-        String displayName = name == null || name.trim().isEmpty() ? "Unnamed device" : name;
+        String displayName = name == null || name.trim().isEmpty() ? Text.t("text_unnamed_device", "Unnamed device") : name;
         boolean matches = matchesNetwork(displayName, advertisement)
                 || (previous != null && previous.matches);
         boolean paired = bonded || (previous != null && previous.bonded);

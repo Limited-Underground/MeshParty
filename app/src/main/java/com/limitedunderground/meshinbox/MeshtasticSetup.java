@@ -20,11 +20,18 @@ final class MeshtasticSetup {
     /** Up to four characters and four UTF-8 bytes, as the official clients allow. */
     static final int SHORT_NAME_CHARACTERS = 4;
 
-    record Region(int code, String label, String band) {
-        String title() { return label + " · " + band; }
+    /** Label key and English name; the label follows the app language. */
+    record Region(int code, String key, String english, String band) {
+        String label() { return Text.t(key, english); }
+        String title() { return label() + " · " + band; }
     }
 
-    record Preset(int code, String label) {}
+    record Preset(int code, String label) {
+        /** The label as listed, with "(default)" after LongFast. */
+        String display() {
+            return code == LONG_FAST ? Text.t("text_preset_default", "%1$s (default)", label) : label;
+        }
+    }
 
     /**
      * Frequency groups a radio's hardware is built for. The radio does not report its hardware
@@ -58,42 +65,42 @@ final class MeshtasticSetup {
     static final List<Region> REGIONS;
     static {
         List<Region> regions = new ArrayList<>(List.of(
-                new Region(1, "United States", "902–928 MHz"),
-                new Region(2, "European Union 433", "433–434 MHz"),
-                new Region(3, "European Union 868", "869.4–869.65 MHz"),
-                new Region(4, "China", "470–510 MHz"),
-                new Region(5, "Japan", "920.5–923.5 MHz"),
-                new Region(6, "Australia / Brazil / New Zealand", "915–928 MHz"),
-                new Region(7, "Korea", "920–923 MHz"),
-                new Region(8, "Taiwan", "920–925 MHz"),
-                new Region(9, "Russia", "868.7–869.2 MHz"),
-                new Region(10, "India", "865–867 MHz"),
-                new Region(11, "New Zealand 865", "864–868 MHz"),
-                new Region(12, "Thailand", "920–925 MHz"),
-                new Region(13, "2.4 GHz (worldwide)", "2400–2483.5 MHz"),
-                new Region(14, "Ukraine 433", "433–434.7 MHz"),
-                new Region(16, "Malaysia 433", "433–435 MHz"),
-                new Region(17, "Malaysia 919", "919–924 MHz"),
-                new Region(18, "Singapore 923", "917–925 MHz"),
-                new Region(19, "Philippines 433", "433–434.7 MHz"),
-                new Region(20, "Philippines 868", "868–869.4 MHz"),
-                new Region(21, "Philippines 915", "915–918 MHz"),
-                new Region(22, "Australia / New Zealand 433", "433.05–434.79 MHz"),
-                new Region(23, "Kazakhstan 433", "433.075–434.775 MHz"),
-                new Region(24, "Kazakhstan 863", "863–868 MHz"),
-                new Region(25, "Nepal 865", "865–868 MHz"),
-                new Region(26, "Brazil 902", "902–907.5 MHz"),
-                new Region(29, "European Union 866", "865.6–867.6 MHz"),
-                new Region(30, "European Union 874", "874 MHz band"),
-                new Region(31, "European Union 917", "917 MHz band"),
-                new Region(32, "European Union 868 (Narrow)", "869.4–869.65 MHz")));
-        regions.sort(Comparator.comparing(Region::label));
+                new Region(1, "text_region_1", "United States", "902–928 MHz"),
+                new Region(2, "text_region_2", "European Union 433", "433–434 MHz"),
+                new Region(3, "text_region_3", "European Union 868", "869.4–869.65 MHz"),
+                new Region(4, "text_region_4", "China", "470–510 MHz"),
+                new Region(5, "text_region_5", "Japan", "920.5–923.5 MHz"),
+                new Region(6, "text_region_6", "Australia / Brazil / New Zealand", "915–928 MHz"),
+                new Region(7, "text_region_7", "Korea", "920–923 MHz"),
+                new Region(8, "text_region_8", "Taiwan", "920–925 MHz"),
+                new Region(9, "text_region_9", "Russia", "868.7–869.2 MHz"),
+                new Region(10, "text_region_10", "India", "865–867 MHz"),
+                new Region(11, "text_region_11", "New Zealand 865", "864–868 MHz"),
+                new Region(12, "text_region_12", "Thailand", "920–925 MHz"),
+                new Region(13, "text_region_13", "2.4 GHz (worldwide)", "2400–2483.5 MHz"),
+                new Region(14, "text_region_14", "Ukraine 433", "433–434.7 MHz"),
+                new Region(16, "text_region_16", "Malaysia 433", "433–435 MHz"),
+                new Region(17, "text_region_17", "Malaysia 919", "919–924 MHz"),
+                new Region(18, "text_region_18", "Singapore 923", "917–925 MHz"),
+                new Region(19, "text_region_19", "Philippines 433", "433–434.7 MHz"),
+                new Region(20, "text_region_20", "Philippines 868", "868–869.4 MHz"),
+                new Region(21, "text_region_21", "Philippines 915", "915–918 MHz"),
+                new Region(22, "text_region_22", "Australia / New Zealand 433", "433.05–434.79 MHz"),
+                new Region(23, "text_region_23", "Kazakhstan 433", "433.075–434.775 MHz"),
+                new Region(24, "text_region_24", "Kazakhstan 863", "863–868 MHz"),
+                new Region(25, "text_region_25", "Nepal 865", "865–868 MHz"),
+                new Region(26, "text_region_26", "Brazil 902", "902–907.5 MHz"),
+                new Region(29, "text_region_29", "European Union 866", "865.6–867.6 MHz"),
+                new Region(30, "text_region_30", "European Union 874", "874 MHz"),
+                new Region(31, "text_region_31", "European Union 917", "917 MHz"),
+                new Region(32, "text_region_32", "European Union 868 (Narrow)", "869.4–869.65 MHz")));
+        regions.sort(Comparator.comparing(Region::english));
         REGIONS = List.copyOf(regions);
     }
 
     /** General presets, in the order the official docs list them. Narrowband presets are region-only. */
     static final List<Preset> PRESETS = List.of(
-            new Preset(0, "LongFast (default)"),
+            new Preset(0, "LongFast"),
             new Preset(7, "LongModerate"),
             new Preset(9, "LongTurbo"),
             new Preset(3, "MediumSlow"),
@@ -135,21 +142,19 @@ final class MeshtasticSetup {
         Band current = band(currentRegion);
         Band chosen = band(chosenRegion);
         if (current == null || chosen == null || current == chosen) return null;
-        return "This radio is set for the " + current.label + " band, and " + regionLabel(chosenRegion)
-                + " uses " + chosen.label + ". A radio only works in the band its hardware is built for."
-                + " Save anyway?";
+        return Text.t("text_band_warning_region", "This radio is set for the %1$s band, and %2$s uses %3$s. A radio only works in the band its hardware is built for. Save anyway?", current.label, regionLabel(chosenRegion), chosen.label);
     }
 
     static String regionLabel(int code) {
-        if (code == REGION_UNSET) return "Not set";
+        if (code == REGION_UNSET) return Text.t("text_region_not_set", "Not set");
         Region region = region(code);
-        return region == null ? "Region " + code : region.label();
+        return region == null ? Text.t("text_region_code", "Region %1$d", code) : region.label();
     }
 
     static String presetLabel(int code) {
-        for (Preset preset : PRESETS) if (preset.code() == code) return preset.label().replace(" (default)", "");
+        for (Preset preset : PRESETS) if (preset.code() == code) return preset.label();
         for (Preset preset : REGION_ONLY_PRESETS) if (preset.code() == code) return preset.label();
-        return "Preset " + code;
+        return Text.t("text_preset_code", "Preset %1$d", code);
     }
 
     /**
@@ -174,23 +179,23 @@ final class MeshtasticSetup {
 
     /** Returns a user-facing problem with the request, or null when it can be sent. */
     static String validate(Request request, Map<Integer, RegionRule> rules) {
-        if (request.region() == REGION_UNSET || region(request.region()) == null) return "Choose your region.";
+        if (request.region() == REGION_UNSET || region(request.region()) == null) return Text.t("text_setup_choose_region", "Choose your region.");
         RegionRule rule = rules == null ? null : rules.get(request.region());
-        if (rule != null && rule.licensedOnly()) return "This region needs an amateur radio licence.";
+        if (rule != null && rule.licensedOnly()) return Text.t("text_setup_licence", "This region needs an amateur radio licence.");
         if (request.preset() != null && !contains(presetsFor(request.region(), rules), request.preset())) {
-            return "Choose a modem preset allowed in this region.";
+            return Text.t("text_setup_preset_not_allowed", "Choose a modem preset allowed in this region.");
         }
         String longName = request.longName() == null ? "" : request.longName().trim();
         String shortName = request.shortName() == null ? "" : request.shortName().trim();
-        if (longName.isEmpty()) return "Enter a long name.";
+        if (longName.isEmpty()) return Text.t("text_setup_enter_long_name", "Enter a long name.");
         if (longName.getBytes(StandardCharsets.UTF_8).length > LONG_NAME_BYTES) {
-            return "The long name can be up to " + LONG_NAME_BYTES + " bytes.";
+            return Text.t("text_setup_long_name_limit", "The long name can be up to %1$d bytes.", LONG_NAME_BYTES);
         }
-        if (shortName.isEmpty()) return "Enter a short name.";
+        if (shortName.isEmpty()) return Text.t("text_setup_enter_short_name", "Enter a short name.");
         // Firmware keeps the short name in a 5-byte buffer: four bytes and a terminator.
         if (shortName.codePointCount(0, shortName.length()) > SHORT_NAME_CHARACTERS
                 || shortName.getBytes(StandardCharsets.UTF_8).length > SHORT_NAME_CHARACTERS) {
-            return "The short name can be up to " + SHORT_NAME_CHARACTERS + " letters or digits.";
+            return Text.t("text_setup_short_name_limit", "The short name can be up to %1$d letters or digits.", SHORT_NAME_CHARACTERS);
         }
         return null;
     }
