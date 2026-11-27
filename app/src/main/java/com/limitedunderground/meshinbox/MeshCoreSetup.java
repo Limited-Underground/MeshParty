@@ -26,7 +26,11 @@ final class MeshCoreSetup {
     private static final int DEVICE_REPEAT = 80;
 
     /** Frequency in kHz and bandwidth in Hz, as the companion protocol carries them. */
-    record Preset(String label, int frequencyKhz, int bandwidthHz, int spreadingFactor, int codingRate) {
+    record Preset(String key, String english, int frequencyKhz, int bandwidthHz, int spreadingFactor, int codingRate) {
+        String label() {
+            return key == null ? english : Text.t(key, english);
+        }
+
         String values() {
             return String.format(java.util.Locale.ROOT, "%.3f MHz · BW %s kHz · SF%d · CR%d",
                     frequencyKhz / 1000.0, kilohertz(bandwidthHz), spreadingFactor, codingRate);
@@ -54,10 +58,10 @@ final class MeshCoreSetup {
      * country's band with its full bandwidth.
      */
     static final List<Preset> PRESETS = List.of(
-            new Preset("USA / Canada", 910_525, 62_500, 7, 5),
-            new Preset("EU / UK (Narrow)", 869_618, 62_500, 8, 8),
-            new Preset("Australia", 915_800, 250_000, 10, 5),
-            new Preset("New Zealand (Narrow)", 917_375, 62_500, 7, 5));
+            new Preset("text_mc_preset_usa", "USA / Canada", 910_525, 62_500, 7, 5),
+            new Preset("text_mc_preset_eu", "EU / UK (Narrow)", 869_618, 62_500, 8, 8),
+            new Preset("text_mc_preset_au", "Australia", 915_800, 250_000, 10, 5),
+            new Preset("text_mc_preset_nz", "New Zealand (Narrow)", 917_375, 62_500, 7, 5));
 
     private MeshCoreSetup() {}
 
@@ -106,13 +110,13 @@ final class MeshCoreSetup {
     /** Returns a user-facing problem with the request, or null when it can be sent. */
     static String validate(Request request, Current current) {
         String name = request.name() == null ? "" : request.name().trim();
-        if (name.isEmpty()) return "Enter a name for this radio.";
-        if (name.indexOf('\0') >= 0) return "The name cannot contain a null character.";
+        if (name.isEmpty()) return Text.t("text_mc_enter_name", "Enter a name for this radio.");
+        if (name.indexOf('\0') >= 0) return Text.t("text_mc_name_null", "The name cannot contain a null character.");
         if (name.getBytes(StandardCharsets.UTF_8).length > NAME_BYTES) {
-            return "The name can be up to " + NAME_BYTES + " bytes.";
+            return Text.t("text_mc_name_limit", "The name can be up to %1$d bytes.", NAME_BYTES);
         }
-        if (request.preset() != null && !PRESETS.contains(request.preset())) return "Choose a listed preset.";
-        if (request.advert() == null) return "Choose whether to announce the radio.";
+        if (request.preset() != null && !PRESETS.contains(request.preset())) return Text.t("text_mc_choose_listed", "Choose a listed preset.");
+        if (request.advert() == null) return Text.t("text_mc_choose_announce", "Choose whether to announce the radio.");
         return null;
     }
 
@@ -136,13 +140,12 @@ final class MeshCoreSetup {
         String now = band(current.frequencyKhz());
         String next = band(preset.frequencyKhz());
         if (now.equals(next)) return null;
-        return "This radio is on the " + now + " band, and " + preset.label() + " uses " + next
-                + ". A radio only works in the band its hardware is built for. Save anyway?";
+        return Text.t("text_band_warning_preset", "This radio is on the %1$s band, and %2$s uses %3$s. A radio only works in the band its hardware is built for. Save anyway?", now, preset.label(), next);
     }
 
     static String describe(Current current) {
         for (Preset preset : PRESETS) if (current.matches(preset)) return preset.label() + " · " + preset.values();
-        return new Preset("", current.frequencyKhz(), current.bandwidthHz(), current.spreadingFactor(),
+        return new Preset(null, "", current.frequencyKhz(), current.bandwidthHz(), current.spreadingFactor(),
                 current.codingRate()).values();
     }
 

@@ -8,6 +8,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothDevice;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -111,7 +112,7 @@ public final class MeshService extends Service {
             (prefs, key) -> {
                 if ("reconnect".equals(key) && !prefs.getBoolean("reconnect", true)) {
                     for (Session session : sessions.values()) {
-                        if (session.pendingRetry != null) session.deactivate("Offline");
+                        if (session.pendingRetry != null) session.deactivate(Text.t("text_status_offline", "Offline"));
                     }
                     publishRadioState();
                 }
@@ -125,6 +126,11 @@ public final class MeshService extends Service {
     private long nextMessageId = 1;
     private boolean foreground;
     private boolean startPending;
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(AppLanguage.wrap(base));
+    }
 
     @Override
     public void onCreate() {
@@ -162,8 +168,8 @@ public final class MeshService extends Service {
                 for (Session session : sessions.values()) {
                     if (session.active) {
                         MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-                        session.deactivate("Bluetooth service unavailable");
-                        session.notice = "Open MeshParty and check Nearby devices permission.";
+                        session.deactivate(Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
+                        session.notice = Text.t("text_notice_check_permission", "Open MeshParty and check Nearby devices permission.");
                     }
                 }
                 publishRadioState();
@@ -184,7 +190,7 @@ public final class MeshService extends Service {
     @Override
     public void onDestroy() {
         settings.unregisterOnSharedPreferenceChangeListener(preferenceListener);
-        for (Session session : sessions.values()) session.deactivate("Offline");
+        for (Session session : sessions.values()) session.deactivate(Text.t("text_status_offline", "Offline"));
         listeners.clear();
         if (foreground) stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
@@ -287,7 +293,7 @@ public final class MeshService extends Service {
         MeshDiagnostics.record(Event.USER_CONNECT, session.radio);
         if (!hasConnectPermission()) {
             MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-            session.notice = "Allow Nearby devices to connect to this radio.";
+            session.notice = Text.t("text_notice_allow_nearby", "Allow Nearby devices to connect to this radio.");
             publish();
             return;
         }
@@ -295,7 +301,7 @@ public final class MeshService extends Service {
         String address = device.getAddress();
         for (Session other : sessions.values()) {
             if (other != session && other.active && address.equals(other.address)) {
-                session.notice = "This radio is already assigned to " + other.network.label() + ".";
+                session.notice = Text.t("text_notice_already_assigned", "This radio is already assigned to %1$s.", other.network.label());
                 publish();
                 return;
             }
@@ -307,16 +313,16 @@ public final class MeshService extends Service {
             deviceName = device.getName();
         } catch (SecurityException error) {
             MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-            session.notice = "Nearby devices permission was removed.";
+            session.notice = Text.t("text_notice_permission_removed", "Nearby devices permission was removed.");
             publish();
             return;
         }
 
-        session.deactivate("Offline");
+        session.deactivate(Text.t("text_status_offline", "Offline"));
         session.device = device;
         session.address = address;
         session.name = isBlank(deviceName) ? network.label() : deviceName;
-        session.status = "Connecting…";
+        session.status = Text.t("text_status_connecting", "Connecting…");
         session.notice = "";
         session.active = true;
         if (foreground) {
@@ -328,8 +334,8 @@ public final class MeshService extends Service {
                 startPending = true;
             } catch (IllegalStateException | SecurityException error) {
                 MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-                session.deactivate("Bluetooth service unavailable");
-                session.notice = "Keep MeshParty open while starting a radio connection.";
+                session.deactivate(Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
+                session.notice = Text.t("text_notice_keep_open", "Keep MeshParty open while starting a radio connection.");
             }
         }
         publishRadioState();
@@ -345,9 +351,9 @@ public final class MeshService extends Service {
     public String send(Network network, RadioProtocol.Destination destination, String body) {
         Session session = sessions.get(network);
         if (!chatRulesAccepted()) return session.rejectSend(getString(R.string.chat_rules_required_to_send));
-        if (!session.ready) return session.rejectSend("Connect the " + network.label() + " radio first.");
-        if (isBlank(body)) return session.rejectSend("Enter a message.");
-        if (destination == null) return session.rejectSend("Choose a destination on " + network.label() + ".");
+        if (!session.ready) return session.rejectSend(Text.t("text_connect_radio_first", "Connect the %1$s radio first.", network.label()));
+        if (isBlank(body)) return session.rejectSend(Text.t("text_enter_message", "Enter a message."));
+        if (destination == null) return session.rejectSend(Text.t("text_choose_destination_on", "Choose a destination on %1$s.", network.label()));
 
         RadioProtocol.Destination current = null;
         for (RadioProtocol.Destination available : session.destinations) {
@@ -356,7 +362,7 @@ public final class MeshService extends Service {
                 break;
             }
         }
-        if (current == null) return session.rejectSend("Choose a current destination on " + network.label() + ".");
+        if (current == null) return session.rejectSend(Text.t("text_choose_current_destination_on", "Choose a current destination on %1$s.", network.label()));
         if (moderation.blocksDestination(network, current)) {
             return session.rejectSend(getString(R.string.chat_blocked_destination));
         }
@@ -366,10 +372,10 @@ public final class MeshService extends Service {
         try {
             session.protocol.send(current, body);
         } catch (IllegalArgumentException | IllegalStateException error) {
-            return session.rejectSend(error.getMessage() == null ? "The radio could not queue this message."
+            return session.rejectSend(error.getMessage() == null ? Text.t("text_could_not_queue", "The radio could not queue this message.")
                     : error.getMessage());
         }
-        if (generation != session.generation) return session.rejectSend("The radio disconnected during send.");
+        if (generation != session.generation) return session.rejectSend(Text.t("text_disconnected_during_send", "The radio disconnected during send."));
         MeshDiagnostics.record(Event.SEND_QUEUED, session.radio);
         appendMessage(network, current, null, "You", body, System.currentTimeMillis(), true, address);
         return null;
@@ -399,19 +405,19 @@ public final class MeshService extends Service {
     public String applyMeshCoreSetup(MeshCoreSetup.Request request) {
         Session session = sessions.get(Network.MESHCORE);
         if (!session.ready || !(session.protocol instanceof MeshCoreProtocol meshcore)) {
-            return "Connect the MeshCore radio first.";
+            return Text.t("text_connect_meshcore_first", "Connect the MeshCore radio first.");
         }
-        if (session.expectedMeshCore != null) return "Radio setup is already running.";
+        if (session.expectedMeshCore != null) return Text.t("text_setup_running", "Radio setup is already running.");
         try {
             meshcore.applySetup(request);
         } catch (IllegalArgumentException | IllegalStateException error) {
-            return error.getMessage() == null ? "The radio could not take these settings." : error.getMessage();
+            return error.getMessage() == null ? Text.t("text_setup_not_taken", "The radio could not take these settings.") : error.getMessage();
         }
         session.expectedMeshCore = request;
-        session.notice = "Sending settings to the radio…";
+        session.notice = Text.t("text_setup_sending", "Sending settings to the radio…");
         session.pendingSetupTimeout = () -> {
             session.pendingSetupTimeout = null;
-            session.finishSetup("MeshParty could not confirm the new settings. Open Set up radio to check them.");
+            session.finishSetup(Text.t("text_setup_not_confirmed", "MeshParty could not confirm the new settings. Open Set up radio to check them."));
         };
         main.postDelayed(session.pendingSetupTimeout, SETUP_CONFIRM_TIMEOUT_MS);
         publish();
@@ -422,19 +428,19 @@ public final class MeshService extends Service {
     public String applyMeshtasticSetup(MeshtasticSetup.Request request) {
         Session session = sessions.get(Network.MESHTASTIC);
         if (!session.ready || !(session.protocol instanceof MeshtasticProtocol meshtastic)) {
-            return "Connect the Meshtastic radio first.";
+            return Text.t("text_connect_meshtastic_first", "Connect the Meshtastic radio first.");
         }
-        if (session.expectedSetup != null) return "Radio setup is already running.";
+        if (session.expectedSetup != null) return Text.t("text_setup_running", "Radio setup is already running.");
         try {
             meshtastic.applySetup(request);
         } catch (IllegalArgumentException | IllegalStateException error) {
-            return error.getMessage() == null ? "The radio could not take these settings." : error.getMessage();
+            return error.getMessage() == null ? Text.t("text_setup_not_taken", "The radio could not take these settings.") : error.getMessage();
         }
         session.expectedSetup = request;
-        session.notice = "Sending settings to the radio…";
+        session.notice = Text.t("text_setup_sending", "Sending settings to the radio…");
         session.pendingSetupTimeout = () -> {
             session.pendingSetupTimeout = null;
-            session.finishSetup("MeshParty could not confirm the new settings. Open Set up radio to check them.");
+            session.finishSetup(Text.t("text_setup_not_confirmed", "MeshParty could not confirm the new settings. Open Set up radio to check them."));
         };
         main.postDelayed(session.pendingSetupTimeout, SETUP_CONFIRM_TIMEOUT_MS);
         publish();
@@ -476,12 +482,12 @@ public final class MeshService extends Service {
 
     private void createNotificationChannels() {
         NotificationChannel connection = new NotificationChannel(CONNECTION_CHANNEL,
-                "Radio connections", NotificationManager.IMPORTANCE_LOW);
+                Text.t("text_channel_connections", "Radio connections"), NotificationManager.IMPORTANCE_LOW);
         connection.setShowBadge(false);
         notifications.createNotificationChannel(connection);
         for (Network network : Network.values()) {
             notifications.createNotificationChannel(new NotificationChannel(
-                    network.notificationChannel, network.label() + " messages",
+                    network.notificationChannel, Text.t("text_channel_messages", "%1$s messages", network.label()),
                     NotificationManager.IMPORTANCE_DEFAULT));
         }
     }
@@ -491,8 +497,9 @@ public final class MeshService extends Service {
         for (Session session : sessions.values()) {
             if (session.ready) connected.add(session.network.label());
         }
-        String text = connected.isEmpty() ? "Bluetooth radio connections active"
-                : "Connected to " + String.join(" and ", connected);
+        String text = connected.isEmpty() ? Text.t("text_notification_active", "Bluetooth radio connections active")
+                : connected.size() == 1 ? Text.t("text_notification_connected_one", "Connected to %1$s", connected.get(0))
+                : Text.t("text_notification_connected_two", "Connected to %1$s and %2$s", connected.get(0), connected.get(1));
         return new Notification.Builder(this, CONNECTION_CHANNEL)
                 .setSmallIcon(R.drawable.ic_radio_status)
                 .setContentTitle("MeshParty")
@@ -502,7 +509,7 @@ public final class MeshService extends Service {
                 .setOngoing(true)
                 .setShowWhen(false)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .addAction(new Notification.Action.Builder(null, "Disconnect radios",
+                .addAction(new Notification.Action.Builder(null, Text.t("text_notification_disconnect", "Disconnect radios"),
                         PendingIntent.getService(this, 1,
                                 new Intent(this, MeshService.class).setAction(ACTION_DISCONNECT_RADIOS),
                                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
@@ -612,7 +619,7 @@ public final class MeshService extends Service {
         private final Radio radio;
         private String name = "";
         private String address = "";
-        private String status = "Offline";
+        private String status = Text.t("text_status_offline", "Offline");
         private String notice = "";
         private boolean active;
         private boolean ready;
@@ -640,22 +647,22 @@ public final class MeshService extends Service {
 
         private void beginConnection() {
             long token = ++generation;
-            status = retryAttempt == 0 ? "Connecting…" : "Reconnecting…";
+            status = retryAttempt == 0 ? Text.t("text_status_connecting", "Connecting…") : Text.t("text_status_reconnecting", "Reconnecting…");
             protocol = network == Network.MESHTASTIC
                     ? new MeshtasticProtocol() : new MeshCoreProtocol();
             transport = new BleTransport(MeshService.this, protocol, radio, new BleTransport.Listener() {
                 @Override
                 public void onReady() {
                     if (!isCurrent(token)) return;
-                    status = "Syncing radio…";
+                    status = Text.t("text_status_syncing", "Syncing radio…");
                     MeshDiagnostics.record(Event.PROTOCOL_SYNC_STARTED, radio);
-                    pendingSyncTimeout = () -> fail(token, "Radio setup timed out.", Event.PROTOCOL_SYNC_TIMEOUT);
+                    pendingSyncTimeout = () -> fail(token, Text.t("text_sync_timeout", "Radio setup timed out."), Event.PROTOCOL_SYNC_TIMEOUT);
                     main.postDelayed(pendingSyncTimeout, SYNC_TIMEOUT_MS);
                     publishRadioState();
                     try {
                         protocol.open(transport, protocolEvents(token));
                     } catch (IllegalArgumentException | IllegalStateException error) {
-                        fail(token, "The radio could not start its messaging session.", Event.PROTOCOL_FAILED);
+                        fail(token, Text.t("text_session_failed", "The radio could not start its messaging session."), Event.PROTOCOL_FAILED);
                     }
                 }
 
@@ -698,12 +705,12 @@ public final class MeshService extends Service {
                     ready = true;
                     previouslyReady = true;
                     retryAttempt = 0;
-                    status = "Connected";
+                    status = Text.t("text_status_connected", "Connected");
                     notice = "";
                     if (protocol instanceof MeshtasticProtocol meshtastic && expectedSetup == null) {
                         MeshtasticSetup.Current setup = meshtastic.setupState();
                         if (setup != null && !setup.regionSet()) {
-                            notice = getString(R.string.setup_region_missing) + " Open Radios and tap Set up radio.";
+                            notice = Text.t("text_region_missing_notice", "No region set: this radio cannot transmit yet. Open Radios and tap Set up radio.");
                         }
                     }
                     checkSetup();
@@ -746,7 +753,7 @@ public final class MeshService extends Service {
                 @Override
                 public void setupApplied() {
                     if (!isCurrent(token) || expectedSetup == null) return;
-                    notice = "Settings sent. The radio may restart; MeshParty reconnects and checks them.";
+                    notice = Text.t("text_setup_sent", "Settings sent. The radio may restart; MeshParty reconnects and checks them.");
                     cancelSetupReadback();
                     pendingSetupReadback = () -> {
                         pendingSetupReadback = null;
@@ -777,12 +784,12 @@ public final class MeshService extends Service {
         private void fail(long token, String reason, Event failureEvent) {
             if (!isCurrent(token)) return;
             if (failureEvent != null) MeshDiagnostics.record(failureEvent, radio);
-            notice = isBlank(reason) ? "Bluetooth connection lost." : reason;
+            notice = isBlank(reason) ? Text.t("text_connection_lost", "Bluetooth connection lost.") : reason;
             closeLink();
             if (previouslyReady && settings.getBoolean("reconnect", true) && hasConnectPermission()
                     && retryAttempt < RECONNECT_SECONDS.length) {
                 int delaySeconds = RECONNECT_SECONDS[retryAttempt++];
-                status = "Reconnecting in " + delaySeconds + " s";
+                status = Text.t("text_status_reconnect_in", "Reconnecting in %1$d s", delaySeconds);
                 MeshDiagnostics.record(Event.RECONNECT_SCHEDULED, radio, delaySeconds);
                 pendingRetry = () -> {
                     pendingRetry = null;
@@ -791,7 +798,7 @@ public final class MeshService extends Service {
                 main.postDelayed(pendingRetry, delaySeconds * 1_000L);
             } else {
                 active = false;
-                status = "Offline";
+                status = Text.t("text_status_offline", "Offline");
             }
             publishRadioState();
         }
@@ -803,24 +810,24 @@ public final class MeshService extends Service {
 
         private void disconnectByUser() {
             if (active) MeshDiagnostics.record(Event.USER_DISCONNECT, radio);
-            deactivate("Offline");
+            deactivate(Text.t("text_status_offline", "Offline"));
         }
 
         private void checkSetup() {
             if (expectedMeshCore != null && protocol instanceof MeshCoreProtocol meshcore) {
                 MeshCoreSetup.Current current = meshcore.setupState();
                 if (!MeshCoreSetup.matches(current, expectedMeshCore)) {
-                    finishSetup("The radio did not keep the new settings. Open Set up radio to check them.");
+                    finishSetup(Text.t("text_setup_not_kept", "The radio did not keep the new settings. Open Set up radio to check them."));
                     return;
                 }
-                finishSetup("Radio set up: " + MeshCoreSetup.describe(current) + ", name " + current.name() + ".");
+                finishSetup(Text.t("text_setup_done_meshcore", "Radio set up: %1$s, name %2$s.", MeshCoreSetup.describe(current), current.name()));
                 return;
             }
             if (expectedSetup == null || !(protocol instanceof MeshtasticProtocol meshtastic)) return;
             MeshtasticSetup.Current current = meshtastic.setupState();
             if (!MeshtasticSetup.matches(current, expectedSetup)) return;
-            String preset = current.usePreset() ? MeshtasticSetup.presetLabel(current.preset()) : "custom settings";
-            finishSetup("Radio set up: " + MeshtasticSetup.regionLabel(current.region()) + ", " + preset + ".");
+            String preset = current.usePreset() ? MeshtasticSetup.presetLabel(current.preset()) : Text.t("text_setup_custom_settings", "custom settings");
+            finishSetup(Text.t("text_setup_done_meshtastic", "Radio set up: %1$s, %2$s.", MeshtasticSetup.regionLabel(current.region()), preset));
         }
 
         private void finishSetup(String result) {

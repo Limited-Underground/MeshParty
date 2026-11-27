@@ -162,6 +162,10 @@ public final class MainActivity extends Activity {
     private int tint;
     private boolean dark;
 
+    @Override protected void attachBaseContext(Context base) {
+        super.attachBaseContext(AppLanguage.wrap(base));
+    }
+
     @Override protected void onCreate(Bundle state) {
         MeshDiagnostics.record(MeshDiagnostics.Event.ACTIVITY_START);
         preferences = getSharedPreferences("settings", MODE_PRIVATE);
@@ -302,7 +306,7 @@ public final class MainActivity extends Activity {
             padding(card, 10, 6, 10, 6);
             card.setBackground(box(surface, border, 10));
             card.addView(label(network.label(), 13, networkInk(network), true));
-            TextView status = label("Offline", 12, muted, false);
+            TextView status = label(getString(R.string.text_status_offline), 12, muted, false);
             card.addView(status);
             statuses.put(network, status);
             addEqual(overview, card, network == Network.MESHCORE ? 8 : 0);
@@ -312,9 +316,9 @@ public final class MainActivity extends Activity {
         LinearLayout navigation = horizontal();
         for (Screen tab : Screen.values()) {
             String title = switch (tab) {
-                case MESSAGES -> "Messages";
-                case RADIOS -> "Radios";
-                case SETTINGS -> "Settings";
+                case MESSAGES -> getString(R.string.tab_messages);
+                case RADIOS -> getString(R.string.tab_radios);
+                case SETTINGS -> getString(R.string.tab_settings);
             };
             Button button = button(title, tab == screen ? tint : canvas, ink);
             button.setSelected(tab == screen);
@@ -343,7 +347,7 @@ public final class MainActivity extends Activity {
         LinearLayout filters = horizontal();
         padding(filters, 16, 5, 16, 4);
         for (String name : List.of("All", Network.MESHTASTIC.label(), Network.MESHCORE.label())) {
-            Button button = button(name, name.equals(filter) ? tint : surface, ink);
+            Button button = button(name.equals("All") ? getString(R.string.filter_all) : name, name.equals(filter) ? tint : surface, ink);
             button.setSelected(name.equals(filter));
             button.setOnClickListener(view -> {
                 if (!name.equals(filter)) {
@@ -375,7 +379,7 @@ public final class MainActivity extends Activity {
         composer.setTextSize(16);
         composer.setTextColor(ink);
         composer.setHintTextColor(muted);
-        composer.setHint("Write a message");
+        composer.setHint(R.string.composer_hint);
         composer.setBackground(box(canvas, border, 10));
         padding(composer, 10, 7, 10, 7);
         composer.setText(draft);
@@ -395,10 +399,10 @@ public final class MainActivity extends Activity {
         LinearLayout columns = horizontal();
         for (Network network : Network.values()) {
             LinearLayout column = vertical();
-            Button pick = button("Choose destination", canvas, muted);
+            Button pick = button(getString(R.string.choose_destination), canvas, muted);
             pick.setOnClickListener(view -> pickDestination(network));
             column.addView(pick, new LinearLayout.LayoutParams(-1, -2));
-            Button send = button("Send via " + network.label(), networkFill(network), networkInk(network));
+            Button send = button(getString(R.string.send_via, network.label()), networkFill(network), networkInk(network));
             send.setOnClickListener(view -> requestSend(network));
             column.addView(send, withTop(4));
             routes.put(network, new Route(pick, send));
@@ -421,7 +425,7 @@ public final class MainActivity extends Activity {
             card.setBackground(box(surface, border, 11));
             LinearLayout row = horizontal();
             row.setGravity(Gravity.CENTER_VERTICAL);
-            TextView author = label(message.outgoing() ? "You" : message.author(), 14, ink, true);
+            TextView author = label(message.outgoing() ? getString(R.string.author_you) : message.author(), 14, ink, true);
             row.addView(author, new LinearLayout.LayoutParams(0, -2, 1));
             TextView time = label(MESSAGE_DATE.format(new Date(message.timestampMillis())), 11, muted, false);
             row.addView(time);
@@ -432,7 +436,7 @@ public final class MainActivity extends Activity {
             Destination target = message.replyTo();
             String context = message.network().label();
             if (target != null) context += " · " + destinationLabel(target);
-            if (message.outgoing()) context += " · Send requested";
+            if (message.outgoing()) context += " · " + getString(R.string.send_requested);
             LinearLayout details = horizontal();
             details.setGravity(Gravity.CENTER_VERTICAL);
             details.addView(label(context, 12, networkInk(message.network()), true),
@@ -441,8 +445,8 @@ public final class MainActivity extends Activity {
             if (!message.outgoing() && target != null && state.ready()
                     && message.radioAddress() != null && Objects.equals(state.address(), message.radioAddress())
                     && state.destinations().contains(target)) {
-                Button reply = button("Reply", networkFill(message.network()), networkInk(message.network()));
-                reply.setContentDescription("Reply via " + message.network().label() + " to " + destinationLabel(target));
+                Button reply = button(getString(R.string.reply), networkFill(message.network()), networkInk(message.network()));
+                reply.setContentDescription(getString(R.string.reply_description, message.network().label(), destinationLabel(target)));
                 reply.setOnClickListener(view -> chooseTarget(message.network(), state.address(), target));
                 details.addView(reply);
             }
@@ -458,9 +462,9 @@ public final class MainActivity extends Activity {
             messages.addView(card, withTop(6));
         }
         if (visible == 0) {
-            TextView empty = label("No messages yet", 17, ink, true);
+            TextView empty = label(getString(R.string.no_messages), 17, ink, true);
             messages.addView(empty, withTop(18));
-            messages.addView(label("Connect a radio to see messages here.", 14, muted, false), withTop(5));
+            messages.addView(label(getString(R.string.no_messages_hint), 14, muted, false), withTop(5));
         }
         ScrollView current = feed;
         if (follow) current.post(() -> current.scrollTo(0, messages.getHeight()));
@@ -476,11 +480,11 @@ public final class MainActivity extends Activity {
             Route controls = routes.get(network);
             RadioState state = radioState(network);
             Target target = currentTarget(network, state);
-            String heading = target == null ? "Choose destination" : destinationLabel(target.destination());
+            String heading = target == null ? getString(R.string.choose_destination) : destinationLabel(target.destination());
             controls.pick().setText(heading);
-            controls.pick().setContentDescription(network.label() + " destination · " + heading);
+            controls.pick().setContentDescription(getString(R.string.destination_description, network.label(), heading));
             controls.pick().setEnabled(state.ready() && !state.destinations().isEmpty());
-            controls.send().setText(state.ready() ? "Send via " + network.label() : network.label() + " unavailable");
+            controls.send().setText(state.ready() ? getString(R.string.send_via, network.label()) : getString(R.string.network_unavailable, network.label()));
             controls.send().setEnabled(canWrite && target != null && !draft.trim().isEmpty());
         }
     }
@@ -489,16 +493,16 @@ public final class MainActivity extends Activity {
         RadioState state = radioState(network);
         if (!state.ready() || state.destinations().isEmpty()) return;
         List<Destination> items = state.destinations();
-        CharSequence[] names = items.stream().map(MainActivity::destinationLabel).toArray(CharSequence[]::new);
-        new AlertDialog.Builder(this).setTitle(network.label() + " destination")
+        CharSequence[] names = items.stream().map(this::destinationLabel).toArray(CharSequence[]::new);
+        new AlertDialog.Builder(this).setTitle(getString(R.string.destination_title, network.label()))
                 .setItems(names, (dialog, position) -> chooseTarget(network, state.address(), items.get(position)))
-                .setNegativeButton("Cancel", null).show();
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     private void chooseTarget(Network network, String address, Destination destination) {
         RadioState state = radioState(network);
         if (!state.ready() || !Objects.equals(state.address(), address) || !state.destinations().contains(destination)) {
-            notifyUser("That destination is unavailable. Choose a destination again.");
+            notifyUser(getString(R.string.destination_gone));
             return;
         }
         targets.put(network, new Target(address, destination));
@@ -521,9 +525,9 @@ public final class MainActivity extends Activity {
             return;
         }
         if (target.destination().channel() && preferences.getBoolean("confirm_channel", false)) {
-            new AlertDialog.Builder(this).setTitle("Send to " + destinationLabel(target.destination()) + "?")
-                    .setMessage(network.label()).setNegativeButton("Cancel", null)
-                    .setPositiveButton("Send", (dialog, which) -> send(network, target, text)).show();
+            new AlertDialog.Builder(this).setTitle(getString(R.string.send_to_confirm, destinationLabel(target.destination())))
+                    .setMessage(network.label()).setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.send, (dialog, which) -> send(network, target, text)).show();
         } else {
             send(network, target, text);
         }
@@ -531,7 +535,7 @@ public final class MainActivity extends Activity {
 
     private void send(Network network, Target target, String text) {
         if (service == null || !target.equals(currentTarget(network, radioState(network)))) {
-            notifyUser("That destination is unavailable. Your draft is still here.");
+            notifyUser(getString(R.string.destination_gone_draft));
             return;
         }
         String error = service.send(network, target.destination(), text);
@@ -556,19 +560,19 @@ public final class MainActivity extends Activity {
 
     private void renderRadioCards() {
         radioCards.removeAllViews();
-        radioCards.addView(label("Bluetooth radios", 19, ink, true));
+        radioCards.addView(label(getString(R.string.radios_title), 19, ink, true));
         for (Network network : Network.values()) {
             RadioState state = radioState(network);
             LinearLayout card = vertical();
             padding(card, 12, 10, 12, 10);
             card.setBackground(box(surface, border, 12));
             card.addView(label(network.label(), 16, networkInk(network), true));
-            String device = state.name() == null || state.name().trim().isEmpty() ? "Choose your radio" : state.name();
+            String device = state.name() == null || state.name().trim().isEmpty() ? getString(R.string.choose_your_radio) : state.name();
             card.addView(label(device + " · " + state.status(), 13, muted, false), withTop(4));
             String notice = service == null ? null : service.notice(network);
             if (notice != null && !notice.trim().isEmpty()) card.addView(label(notice, 13, ink, false), withTop(5));
-            Button action = button(state.active() ? "Disconnect" : "Choose radio", networkFill(network), networkInk(network));
-            action.setContentDescription((state.active() ? "Disconnect " : "Choose radio for ") + network.label());
+            Button action = button(state.active() ? getString(R.string.disconnect) : getString(R.string.choose_radio), networkFill(network), networkInk(network));
+            action.setContentDescription(getString(state.active() ? R.string.disconnect_description : R.string.choose_radio_description, network.label()));
             action.setEnabled(service != null);
             action.setOnClickListener(view -> {
                 if (service == null) return;
@@ -599,7 +603,7 @@ public final class MainActivity extends Activity {
             }
             radioCards.addView(card, withTop(10));
         }
-        radioCards.addView(label("Use a Bluetooth-enabled Meshtastic radio and a radio running MeshCore Bluetooth Companion firmware.",
+        radioCards.addView(label(getString(R.string.radios_hint),
                 13, muted, false), withTop(14));
     }
 
@@ -615,7 +619,7 @@ public final class MainActivity extends Activity {
         BluetoothAdapter adapter = manager == null ? null : manager.getAdapter();
         if (adapter == null) {
             pendingPicker = null;
-            notifyUser("Bluetooth is unavailable on this phone.");
+            notifyUser(getString(R.string.bluetooth_unavailable));
         } else if (!adapter.isEnabled()) {
             startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), ENABLE_BLUETOOTH);
         } else {
@@ -630,7 +634,7 @@ public final class MainActivity extends Activity {
         if (radioPicker != null) radioPicker.close();
         radioPicker = new RadioPicker(this, network, device -> {
             if (service == null) {
-                notifyUser("Radio service is starting. Choose the radio again.");
+                notifyUser(getString(R.string.service_starting));
                 return;
             }
             service.connect(network, device);
@@ -650,7 +654,7 @@ public final class MainActivity extends Activity {
             beginRadioSelection(pendingPicker);
         } else {
             pendingPicker = null;
-            notifyUser("Allow Nearby devices in Android settings to connect a radio.");
+            notifyUser(getString(R.string.allow_nearby_settings));
         }
     }
 
@@ -679,26 +683,29 @@ public final class MainActivity extends Activity {
         feedback.setOnClickListener(view -> showFeedback());
         inner.addView(feedback, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout display = settingsGroup(inner, "Display and inbox");
-        addChoice(display, "Appearance", "theme", "System", List.of("System", "Light", "Dark"), this::recreate);
-        addChoice(display, "Default inbox", "inbox", "All", List.of("All", "Meshtastic", "MeshCore"), () -> {
+        LinearLayout display = settingsGroup(inner, getString(R.string.settings_display));
+        addLanguageChoice(display);
+        addChoice(display, getString(R.string.settings_appearance), "theme", "System", List.of("System", "Light", "Dark"),
+                List.of(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark)), this::recreate);
+        addChoice(display, getString(R.string.settings_default_inbox), "inbox", "All", List.of("All", "Meshtastic", "MeshCore"),
+                List.of(getString(R.string.filter_all), "Meshtastic", "MeshCore"), () -> {
             filter = preferences.getString("inbox", "All");
             render();
         });
-        LinearLayout alerts = settingsGroup(inner, "Message alerts");
-        addSwitch(alerts, "Meshtastic alerts", "alert_meshtastic", true);
-        addSwitch(alerts, "MeshCore alerts", "alert_meshcore", true);
+        LinearLayout alerts = settingsGroup(inner, getString(R.string.settings_alerts));
+        addSwitch(alerts, getString(R.string.settings_alerts_network, "Meshtastic"), "alert_meshtastic", true);
+        addSwitch(alerts, getString(R.string.settings_alerts_network, "MeshCore"), "alert_meshcore", true);
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
-            Button permission = button("Allow Android notifications", tint, ink);
+            Button permission = button(getString(R.string.settings_allow_notifications), tint, ink);
             permission.setOnClickListener(view -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
                     NOTIFICATION_PERMISSION));
             alerts.addView(permission, withTop(3));
         }
-        LinearLayout link = settingsGroup(inner, "Bluetooth");
-        addSwitch(link, "Reconnect after a connection drops", "reconnect", true);
-        LinearLayout sending = settingsGroup(inner, "Sending");
-        addSwitch(sending, "Confirm channel sends", "confirm_channel", false);
+        LinearLayout link = settingsGroup(inner, getString(R.string.settings_bluetooth));
+        addSwitch(link, getString(R.string.settings_reconnect), "reconnect", true);
+        LinearLayout sending = settingsGroup(inner, getString(R.string.settings_sending));
+        addSwitch(sending, getString(R.string.settings_confirm_channel), "confirm_channel", false);
 
         LinearLayout safety = settingsGroup(inner, getString(R.string.chat_safety));
         safety.addView(label(getString(R.string.chat_safety_summary), 14, ink, false));
@@ -728,17 +735,17 @@ public final class MainActivity extends Activity {
                 }).show());
         diagnostics.addView(clear, withTop(4));
 
-        LinearLayout about = settingsGroup(inner, "About MeshParty");
+        LinearLayout about = settingsGroup(inner, getString(R.string.settings_about));
         about.addView(label(getString(R.string.app_version, BuildConfig.VERSION_NAME),
                 14, ink, true));
         about.addView(label(getString(R.string.independent_app), 14, ink, false), withTop(4));
         Button privacy = button(getString(R.string.privacy_policy), tint, ink);
         privacy.setOnClickListener(view -> showPrivacyPolicy());
         about.addView(privacy, withTop(7));
-        Button meshtastic = button("Official Meshtastic app", networkFill(Network.MESHTASTIC), networkInk(Network.MESHTASTIC));
+        Button meshtastic = button(getString(R.string.official_app, "Meshtastic"), networkFill(Network.MESHTASTIC), networkInk(Network.MESHTASTIC));
         meshtastic.setOnClickListener(view -> openWebsite(ABOUT_MESHTASTIC));
         about.addView(meshtastic, withTop(4));
-        Button meshcore = button("Official MeshCore app", networkFill(Network.MESHCORE), networkInk(Network.MESHCORE));
+        Button meshcore = button(getString(R.string.official_app, "MeshCore"), networkFill(Network.MESHCORE), networkInk(Network.MESHCORE));
         meshcore.setOnClickListener(view -> openWebsite(ABOUT_MESHCORE));
         about.addView(meshcore, withTop(4));
     }
@@ -747,11 +754,11 @@ public final class MainActivity extends Activity {
         if (setupDialog != null || service == null) return;
         MeshtasticSetup.Current setup = service.meshtasticSetup();
         if (setup == null) {
-            notifyUser("Connect the Meshtastic radio first.");
+            notifyUser(getString(R.string.text_connect_meshtastic_first));
             return;
         }
         setupDialog = RadioSetupDialog.create(this, setup, request -> {
-            String problem = service == null ? "Connect the Meshtastic radio first."
+            String problem = service == null ? getString(R.string.text_connect_meshtastic_first)
                     : service.applyMeshtasticSetup(request);
             if (problem == null) refresh();
             return problem;
@@ -764,11 +771,11 @@ public final class MainActivity extends Activity {
         if (setupDialog != null || service == null) return;
         MeshCoreSetup.Current setup = service.meshCoreSetup();
         if (setup == null) {
-            notifyUser("Connect the MeshCore radio first.");
+            notifyUser(getString(R.string.text_connect_meshcore_first));
             return;
         }
         setupDialog = MeshCoreSetupDialog.create(this, setup, request -> {
-            String problem = service == null ? "Connect the MeshCore radio first."
+            String problem = service == null ? getString(R.string.text_connect_meshcore_first)
                     : service.applyMeshCoreSetup(request);
             if (problem == null) refresh();
             return problem;
@@ -1165,16 +1172,34 @@ public final class MainActivity extends Activity {
     }
 
     private void addChoice(LinearLayout group, String title, String key, String fallback,
-                           List<String> options, Runnable changed) {
+                           List<String> options, List<String> labels, Runnable changed) {
         String selected = preferences.getString(key, fallback);
-        Button row = button(title + " · " + selected, surface, ink);
+        int index = Math.max(0, options.indexOf(selected));
+        Button row = button(title + " · " + labels.get(index), surface, ink);
         row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         row.setOnClickListener(view -> new AlertDialog.Builder(this).setTitle(title)
-                .setSingleChoiceItems(options.toArray(new String[0]), options.indexOf(selected), (dialog, which) -> {
+                .setSingleChoiceItems(labels.toArray(new String[0]), options.indexOf(selected), (dialog, which) -> {
                     preferences.edit().putString(key, options.get(which)).apply();
                     dialog.dismiss();
                     changed.run();
-                }).setNegativeButton("Cancel", null).show());
+                }).setNegativeButton(android.R.string.cancel, null).show());
+        group.addView(row, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void addLanguageChoice(LinearLayout group) {
+        AppLanguage current = AppLanguage.current(this);
+        Button row = button(getString(R.string.settings_language) + " · " + current.label(this), surface, ink);
+        row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        row.setOnClickListener(view -> {
+            AppLanguage[] languages = AppLanguage.values();
+            String[] labels = new String[languages.length];
+            for (int i = 0; i < languages.length; i++) labels[i] = languages[i].label(this);
+            new AlertDialog.Builder(this).setTitle(R.string.settings_language_choose)
+                    .setSingleChoiceItems(labels, current.ordinal(), (dialog, which) -> {
+                        dialog.dismiss();
+                        if (languages[which] != current) AppLanguage.choose(this, languages[which]);
+                    }).setNegativeButton(android.R.string.cancel, null).show();
+        });
         group.addView(row, new LinearLayout.LayoutParams(-1, -2));
     }
 
@@ -1201,11 +1226,11 @@ public final class MainActivity extends Activity {
 
     private RadioState radioState(Network network) {
         if (service != null) return service.state(network);
-        return new RadioState(null, null, "Offline", false, false, List.of());
+        return new RadioState(null, null, getString(R.string.text_status_offline), false, false, List.of());
     }
 
-    private static String destinationLabel(Destination destination) {
-        return destination.channel() ? "# " + destination.label() : destination.label() + " · DM";
+    private String destinationLabel(Destination destination) {
+        return destination.channel() ? "# " + destination.label() : getString(R.string.destination_dm, destination.label());
     }
 
     private Button button(String text, int fill, int foreground) {
@@ -1288,7 +1313,7 @@ public final class MainActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (android.content.ActivityNotFoundException unavailable) {
-            notifyUser("No browser is available on this phone.");
+            notifyUser(getString(R.string.no_browser));
         }
     }
 

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- text_* strings are looked up by name through Text.t (D-197), so lint cannot see their use. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/text_*" />
