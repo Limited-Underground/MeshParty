@@ -36,7 +36,48 @@ const selectFeedback =
   "SELECT kind, message, details_json AS details FROM feedback WHERE feedback_id = ?1";
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
+    const response = await handle(request, env);
+    // A new submission (201, not a retry) sends the owner a push without its content (D-208).
+    if (response.status === 201 && response.alert) {
+      const sent = sendAlert(env.ALERT_URL, response.alert);
+      if (ctx?.waitUntil) ctx.waitUntil(sent); else await sent;
+    }
+    return response;
+  },
+
+  async scheduled(_controller, env) {
+    // Keep the two purges independent so one failure can't leave both queues unpurged.
+    const purges = await Promise.allSettled([
+      deleteExpired(env.REPORTS, "DELETE FROM abuse_reports WHERE expires_at <= unixepoch()"),
+      deleteExpired(env.REPORTS, "DELETE FROM feedback WHERE expires_at <= unixepoch()"),
+    ]);
+    if (purges.some(purge => purge.status !== "fulfilled" || !purge.value?.success)) {
+      throw new Error("Report service expiry failed");
+    }
+  },
+};
+
+/**
+ * Posts a short notice to the owner's private ntfy topic (ALERT_URL, a Worker secret).
+ * Only the submission type and its fixed category go out, never the text, names or IDs.
+ * A failed or missing alert never changes the response the app receives.
+ */
+async function sendAlert(alertUrl, alert) {
+  if (typeof alertUrl !== "string" || !alertUrl.startsWith("https://")) return;
+  try {
+    await fetch(alertUrl, {
+      method: "POST",
+      headers: { Title: alert.title, Tags: alert.tags, Priority: "default" },
+      body: alert.body,
+    });
+  } catch {
+    // The submission is already stored; the owner still finds it in the database.
+  }
+}
+
+async function handle(request, env) {
+  {
     const url = new URL(request.url);
     const isFeedback = url.pathname === "/v1/feedback";
     if (!isFeedback && url.pathname !== "/v1/reports") return empty(404);
@@ -65,7 +106,16 @@ export default {
 
     const body = await readJsonBody(request.body, maxBytes);
     if (body.status !== 200) return empty(body.status);
-    if (isFeedback) return receiveFeedback(body.value, env.REPORTS);
+    if (isFeedback) {
+      const response = await receiveFeedback(body.value, env.REPORTS);
+      if (response.status !== 201) return response;
+      response.alert = {
+        title: "MeshParty feedback",
+        tags: "speech_balloon",
+        body: `New feedback: ${body.value.kind}. Read it in the D1 console.`,
+      };
+      return response;
+    }
     const report = validateReport(body.value);
     if (report === null) return empty(400);
 
@@ -78,23 +128,18 @@ export default {
         ),
         env.REPORTS.prepare(selectReport).bind(report.reportId),
       ]);
-      return acknowledge(write, read, report.reportId, report);
+      const response = acknowledge(write, read, report.reportId, report);
+      response.alert = {
+        title: "MeshParty abuse report",
+        tags: "warning",
+        body: `New ${report.kind} report: ${report.reason}, ${report.network}. Review it in the D1 console.`,
+      };
+      return response;
     } catch {
       return empty(503);
     }
-  },
-
-  async scheduled(_controller, env) {
-    // Keep the two purges independent so one failure can't leave both queues unpurged.
-    const purges = await Promise.allSettled([
-      deleteExpired(env.REPORTS, "DELETE FROM abuse_reports WHERE expires_at <= unixepoch()"),
-      deleteExpired(env.REPORTS, "DELETE FROM feedback WHERE expires_at <= unixepoch()"),
-    ]);
-    if (purges.some(purge => purge.status !== "fulfilled" || !purge.value?.success)) {
-      throw new Error("Report service expiry failed");
-    }
-  },
-};
+  }
+}
 
 function empty(status, headers = {}) {
   return new Response(null, { status, headers: { ...responseHeaders, ...headers } });

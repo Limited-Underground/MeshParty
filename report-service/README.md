@@ -35,6 +35,22 @@ wrangler deploy --config wrangler.jsonc
 
 Use the actual database name in the migration command if it differs from the example. The Worker serves the report endpoint at `https://<approved-host>/v1/reports` and feedback at `https://<approved-host>/v1/feedback`. Configure the app and publish its matching privacy policies after verifying both endpoints.
 
+## Alerts for new submissions
+
+The service can push a short notice to the owner's phone through [ntfy](https://ntfy.sh) when a new feedback item or abuse report is stored (D-208). The notice names only the type and its fixed category, for example "New feedback: idea" or "New sender report: harassment, meshtastic". It never includes the message text, sender names, sender IDs, receipt IDs or app details, and a retry of an existing submission does not alert again. A failed alert never changes the app's receipt.
+
+1. Install the ntfy app on the phone and subscribe to a long random topic name (it works like a password; anyone who knows it can read the alerts).
+2. Store the topic URL as a Worker secret, then deploy:
+
+   ```sh
+   wrangler secret put ALERT_URL --config wrangler.jsonc   # value: https://ntfy.sh/<your-topic>
+   wrangler deploy --config wrangler.jsonc
+   ```
+
+3. Send one fictional feedback item from a test build and check that the phone shows the alert.
+
+Without `ALERT_URL`, or with a URL that is not `https://`, the service sends no alerts.
+
 ## Review and retention
 
 Use the authenticated Cloudflare D1 console with access restricted to designated reviewers. The Worker exposes write-only intake endpoints. For the abuse report queue, this query excludes expired rows even if the daily purge is still pending.
