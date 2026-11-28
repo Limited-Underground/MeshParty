@@ -2,7 +2,12 @@
 
 Changes to the MeshParty Android app, newest first. Each version that reaches Google Play also gets a [GitHub release](https://github.com/Limited-Underground/MeshParty/releases) tagged on the commit it was built from.
 
-## 0.2.2 (version code 12), in progress
+## 0.2.3 (version code 13), in progress
+
+- Each message you send shows how far it got: Sending…, Sent, Delivered ✓ or Not delivered. Direct messages reach Delivered when the recipient confirms (Meshtastic routing acknowledgement, MeshCore send confirmation); a channel message is Sent once the radio took it. A message with no confirmation after 3 minutes, or still waiting when the radio disconnects, shows Not delivered.
+- **Resend** on a message that was not delivered sends it again to the same destination; the new copy replaces the old one.
+
+## 0.2.2 (version code 12), 2026-11-28
 
 - Nodes list on the Radios screen, under each connected radio: every node the radio heard (Meshtastic) or keeps as a contact (MeshCore), most recently heard first. Each row shows the name, ID, hops (or Direct), signal (SNR, Meshtastic only) and when it was last heard; MeshCore rows also show the type (companion, repeater, room server, sensor). The first 8 show, with Show all for the rest.
 

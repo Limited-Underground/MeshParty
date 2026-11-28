@@ -506,7 +506,7 @@ public final class MainActivity extends Activity {
             Destination target = message.replyTo();
             String context = message.network().label();
             if (target != null) context += " · " + destinationLabel(target);
-            if (message.outgoing()) context += " · " + getString(R.string.send_requested);
+            if (message.outgoing()) context += " · " + deliveryLabel(message);
             LinearLayout details = horizontal();
             details.setGravity(Gravity.CENTER_VERTICAL);
             details.addView(label(context, 12, networkInk(message.network()), true),
@@ -519,6 +519,17 @@ public final class MainActivity extends Activity {
                 reply.setContentDescription(getString(R.string.reply_description, message.network().label(), destinationLabel(target)));
                 reply.setOnClickListener(view -> chooseTarget(message.network(), state.address(), target));
                 details.addView(reply);
+            }
+            if (message.canResend() && state.ready() && Objects.equals(state.address(), message.radioAddress())
+                    && state.destinations().contains(target)) {
+                Button resend = button(getString(R.string.resend), networkFill(message.network()), networkInk(message.network()));
+                resend.setContentDescription(getString(R.string.resend_description, destinationLabel(target)));
+                resend.setOnClickListener(view -> {
+                    if (service == null) return;
+                    String error = service.resend(message.id());
+                    if (error != null) notifyUser(error);
+                });
+                details.addView(resend);
             }
             if (!message.outgoing()) {
                 Button more = button(getString(R.string.message_options), canvas, ink);
@@ -538,6 +549,17 @@ public final class MainActivity extends Activity {
         }
         ScrollView current = feed;
         if (follow) current.post(() -> current.scrollTo(0, messages.getHeight()));
+    }
+
+    /** Sending…, Sent, Delivered ✓ or Not delivered for a sent message (0.2.3). */
+    private String deliveryLabel(Message message) {
+        return switch (message.delivery()) {
+            case RadioProtocol.SENDING -> getString(R.string.delivery_sending);
+            case RadioProtocol.SENT -> getString(R.string.delivery_sent);
+            case RadioProtocol.DELIVERED -> getString(R.string.delivery_delivered);
+            case RadioProtocol.FAILED -> getString(R.string.delivery_failed);
+            default -> getString(R.string.send_requested);
+        };
     }
 
     private void refreshRoutes() {

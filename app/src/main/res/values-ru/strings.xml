@@ -340,6 +340,13 @@
     <string name="send_via">Отправить через %1$s</string>
     <string name="author_you">Вы</string>
     <string name="send_requested">Отправка запрошена</string>
+    <string name="delivery_sending">Отправка…</string>
+    <string name="delivery_sent">Отправлено</string>
+    <string name="delivery_delivered">Доставлено ✓</string>
+    <string name="delivery_failed">Не доставлено</string>
+    <string name="resend">Отправить снова</string>
+    <string name="resend_description">Отправить это сообщение в %1$s снова</string>
+    <string name="whats_new_0_2_3">• У отправленных сообщений видно: Отправка…, Отправлено, Доставлено ✓ или Не доставлено.\n• Недоставленное сообщение можно отправить снова одним касанием.</string>
     <string name="reply">Ответить</string>
     <string name="reply_description">Ответить через %1$s для %2$s</string>
     <string name="no_messages">Сообщений пока нет</string>

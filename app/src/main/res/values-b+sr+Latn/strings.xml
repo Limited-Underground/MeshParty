@@ -340,6 +340,13 @@
     <string name="send_via">Pošalji preko %1$s</string>
     <string name="author_you">Vi</string>
     <string name="send_requested">Slanje zatraženo</string>
+    <string name="delivery_sending">Slanje…</string>
+    <string name="delivery_sent">Poslato</string>
+    <string name="delivery_delivered">Isporučeno ✓</string>
+    <string name="delivery_failed">Nije isporučeno</string>
+    <string name="resend">Pošalji ponovo</string>
+    <string name="resend_description">Ponovo pošalji ovu poruku na %1$s</string>
+    <string name="whats_new_0_2_3">• Poslate poruke prikazuju Slanje…, Poslato, Isporučeno ✓ ili Nije isporučeno.\n• Jednim dodirom ponovo pošalji poruku koja nije isporučena.</string>
     <string name="reply">Odgovori</string>
     <string name="reply_description">Odgovori preko %1$s za %2$s</string>
     <string name="no_messages">Još nema poruka</string>

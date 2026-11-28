@@ -72,18 +72,31 @@ public final class MeshtasticProtocolTest {
             check(radio.writes.size() == writesBeforeRejectedSend, "unknown destination does not write");
         }
 
-        protocol.send(radio.destinations.get(1), "Hi");
+        long channelSendId = protocol.send(radio.destinations.get(1), "Hi");
         byte[] channelSend = radio.writes.get(radio.writes.size() - 1);
         check(HEX.formatHex(channelSend).matches("0a1615ffffffff1801220608011202486935[0-9a-f]{8}5001"),
                 "channel send writes broadcast, explicit slot, text and want_ack");
         int channelPacketId = ByteBuffer.wrap(channelSend).order(ByteOrder.LITTLE_ENDIAN).getInt(18);
         protocol.onBytes(routingAck(channelPacketId));
         check(radio.notice.contains("relay acknowledgement"), "relay acknowledgement is distinguished from recipient receipt");
+        check(channelPacketId == (int) channelSendId && radio.deliveries.get(channelSendId) == RadioProtocol.SENT,
+                "a relayed channel message is reported as sent");
 
-        protocol.send(radio.destinations.get(2), "Hi");
+        long directSendId = protocol.send(radio.destinations.get(2), "Hi");
         byte[] directSend = radio.writes.get(radio.writes.size() - 1);
         check(HEX.formatHex(directSend).matches("0a1615220000001800220608011202486935[0-9a-f]{8}5001"),
                 "DM send addresses the selected Meshtastic node");
+        protocol.onBytes(routing((int) directSendId, 0x11, 0));
+        check(radio.deliveries.get(directSendId) == RadioProtocol.SENT, "a relay by another node is only sent");
+        protocol.onBytes(routing((int) directSendId, 0x22, 0));
+        check(radio.deliveries.get(directSendId) == RadioProtocol.DELIVERED, "the recipient's acknowledgement is delivered");
+
+        long lostSendId = protocol.send(radio.destinations.get(2), "Lost");
+        protocol.onBytes(routing((int) lostSendId, 0x11, 5));
+        check(radio.deliveries.get(lostSendId) == RadioProtocol.FAILED, "no acknowledgement after retries fails");
+        long quietChannelId = protocol.send(radio.destinations.get(1), "Quiet");
+        protocol.onBytes(routing((int) quietChannelId, 0x11, 5));
+        check(radio.deliveries.get(quietChannelId) == RadioProtocol.SENT, "a channel message with no relay heard is still sent");
 
         String ownKey = "11".repeat(32);
         String peerKey = "22".repeat(32);
@@ -114,6 +127,16 @@ public final class MeshtasticProtocolTest {
         return packet;
     }
 
+    /** A routing reply from a node for a request ID, with an error code (0 = acknowledgement). */
+    private static byte[] routing(int id, int from, int error) {
+        byte[] packet = hex("12170d220000001511000000220b0805120218003500000000");
+        ByteBuffer buffer = ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(3, from);
+        packet[packet.length - 6] = (byte) error;
+        buffer.putInt(packet.length - 4, id);
+        return packet;
+    }
+
     private static byte[] hex(String value) { return HEX.parseHex(value); }
 
     private static void check(boolean outcome, String label) {
@@ -124,6 +147,7 @@ public final class MeshtasticProtocolTest {
         final List<byte[]> writes = new ArrayList<>();
         List<RadioProtocol.Destination> destinations = List.of();
         List<RadioProtocol.Node> nodes = List.of();
+        final java.util.Map<Long, Integer> deliveries = new java.util.HashMap<>();
         RadioProtocol.Destination reply;
         int reads;
         boolean ready;
@@ -139,6 +163,7 @@ public final class MeshtasticProtocolTest {
         @Override public void ready() { ready = true; }
         @Override public void destinations(List<RadioProtocol.Destination> values) { destinations = values; }
         @Override public void nodes(List<RadioProtocol.Node> values) { nodes = values; }
+        @Override public void delivery(long sendId, int state) { deliveries.put(sendId, state); }
         @Override public void message(RadioProtocol.Destination replyTo, String senderId, String author,
                 String body, long timestampMillis) {
             this.reply = replyTo;
