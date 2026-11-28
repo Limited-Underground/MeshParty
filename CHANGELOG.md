@@ -2,7 +2,11 @@
 
 Changes to the MeshParty Android app, newest first. Each version that reaches Google Play also gets a [GitHub release](https://github.com/Limited-Underground/MeshParty/releases) tagged on the commit it was built from.
 
-## 0.2.1 (version code 11), in progress
+## 0.2.2 (version code 12), in progress
+
+- Nodes list on the Radios screen, under each connected radio: every node the radio heard (Meshtastic) or keeps as a contact (MeshCore), most recently heard first. Each row shows the name, ID, hops (or Direct), signal (SNR, Meshtastic only) and when it was last heard; MeshCore rows also show the type (companion, repeater, room server, sensor). The first 8 show, with Show all for the rest.
+
+## 0.2.1 (version code 11), 2026-11-28
 
 - The chat rules open in a window when the app starts. They must be accepted once before using MeshParty; Close app leaves without accepting. The "Review chat rules to write a message" button in the message box is gone.
 - After the rules are accepted, MeshParty asks once for Android notification permission, so message alerts work right away.

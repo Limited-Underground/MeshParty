@@ -18,6 +18,18 @@ public interface RadioProtocol {
 
     record Destination(String id, String label, boolean channel) {}
 
+    /**
+     * A node the radio has heard or keeps as a contact. lastHeardMillis is 0 when unknown;
+     * snr and hops are null when the radio does not report them (hops 0 means direct).
+     */
+    record Node(String id, String name, String shortId, int kind, long lastHeardMillis, Float snr, Integer hops) {
+        public static final int MESHTASTIC = 0;
+        public static final int COMPANION = 1;
+        public static final int REPEATER = 2;
+        public static final int ROOM = 3;
+        public static final int SENSOR = 4;
+    }
+
     interface Link {
         void write(byte[] frame);
         void read();
@@ -34,6 +46,8 @@ public interface RadioProtocol {
                      long timestampMillis);
         void notice(String information);
         void failed(String information);
+        /** The nodes this radio knows about, replacing the previous list. */
+        default void nodes(List<Node> nodes) {}
         /** The radio reported new setup values (region, preset or names). */
         default void setupChanged() {}
         /** All setup changes were handed to the radio; it may now restart. */

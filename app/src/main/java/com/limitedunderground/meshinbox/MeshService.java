@@ -59,7 +59,8 @@ public final class MeshService extends Service {
     }
 
     public record RadioState(String name, String address, String status, boolean active,
-                             boolean ready, List<RadioProtocol.Destination> destinations) {}
+                             boolean ready, List<RadioProtocol.Destination> destinations,
+                             List<RadioProtocol.Node> nodes) {}
 
     public record Message(long id, Network network, RadioProtocol.Destination replyTo,
                           String author, String body, long timestampMillis, boolean outgoing,
@@ -273,7 +274,7 @@ public final class MeshService extends Service {
             if (!moderation.blocksDestination(network, target)) visible.add(target);
         }
         return new RadioState(session.name, session.address, session.status.get(), session.active,
-                session.ready, List.copyOf(visible));
+                session.ready, List.copyOf(visible), session.nodes);
     }
 
     public String notice(Network network) {
@@ -637,6 +638,7 @@ public final class MeshService extends Service {
         private MeshtasticSetup.Request expectedSetup;
         private MeshCoreSetup.Request expectedMeshCore;
         private List<RadioProtocol.Destination> destinations = List.of();
+        private List<RadioProtocol.Node> nodes = List.of();
 
         Session(Network network) {
             this.network = network;
@@ -722,6 +724,13 @@ public final class MeshService extends Service {
                 public void destinations(List<RadioProtocol.Destination> available) {
                     if (!isCurrent(token)) return;
                     destinations = List.copyOf(available);
+                    publish();
+                }
+
+                @Override
+                public void nodes(List<RadioProtocol.Node> heard) {
+                    if (!isCurrent(token)) return;
+                    nodes = List.copyOf(heard);
                     publish();
                 }
 
@@ -868,6 +877,7 @@ public final class MeshService extends Service {
             cancelSyncTimeout();
             ready = false;
             destinations = List.of();
+            nodes = List.of();
             if (protocol != null) protocol.close();
             if (transport != null) transport.disconnect();
             protocol = null;

@@ -60,8 +60,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -147,6 +149,7 @@ public final class MainActivity extends Activity {
     private AlertDialog feedbackDialog;
     private AlertDialog setupDialog;
     private AlertDialog startupDialog;
+    private final EnumSet<Network> allNodes = EnumSet.noneOf(Network.class);
     private Screen screen = Screen.MESSAGES;
     private String filter;
     private String draft = "";
@@ -664,10 +667,73 @@ public final class MainActivity extends Activity {
                 configure.setOnClickListener(view -> showMeshCoreSetup());
                 card.addView(configure, withTop(4));
             }
+            if (state.ready()) addNodes(card, network, state.nodes());
             radioCards.addView(card, withTop(10));
         }
         radioCards.addView(label(getString(R.string.radios_hint),
                 13, muted, false), withTop(14));
+    }
+
+    private static final int NODES_SHOWN = 8;
+
+    /** Nodes the radio heard or keeps as contacts, most recently heard first (0.2.2). */
+    private void addNodes(LinearLayout card, Network network, List<RadioProtocol.Node> nodes) {
+        List<RadioProtocol.Node> sorted = new ArrayList<>(nodes);
+        sorted.sort(Comparator.comparingLong(RadioProtocol.Node::lastHeardMillis).reversed()
+                .thenComparing(node -> node.name().toLowerCase(Locale.ROOT)));
+        card.addView(label(getString(R.string.nodes_heard, sorted.size()), 14, ink, true), withTop(12));
+        if (sorted.isEmpty()) {
+            card.addView(label(getString(R.string.nodes_none), 13, muted, false), withTop(4));
+            return;
+        }
+        boolean all = allNodes.contains(network);
+        long now = System.currentTimeMillis();
+        int shown = all ? sorted.size() : Math.min(NODES_SHOWN, sorted.size());
+        for (int i = 0; i < shown; i++) {
+            RadioProtocol.Node node = sorted.get(i);
+            LinearLayout row = vertical();
+            padding(row, 0, 6, 0, 6);
+            row.addView(label(node.name(), 14, ink, false));
+            row.addView(label(nodeDetails(node, now), 12, muted, false));
+            card.addView(row);
+        }
+        if (sorted.size() > NODES_SHOWN) {
+            Button more = button(all ? getString(R.string.nodes_show_fewer)
+                    : getString(R.string.nodes_show_all, sorted.size()), tint, ink);
+            more.setOnClickListener(view -> {
+                if (!allNodes.remove(network)) allNodes.add(network);
+                renderRadioCards();
+            });
+            card.addView(more, withTop(4));
+        }
+    }
+
+    private String nodeDetails(RadioProtocol.Node node, long now) {
+        List<String> parts = new ArrayList<>();
+        switch (node.kind()) {
+            case RadioProtocol.Node.COMPANION -> parts.add(getString(R.string.node_kind_companion));
+            case RadioProtocol.Node.REPEATER -> parts.add(getString(R.string.node_kind_repeater));
+            case RadioProtocol.Node.ROOM -> parts.add(getString(R.string.node_kind_room));
+            case RadioProtocol.Node.SENSOR -> parts.add(getString(R.string.node_kind_sensor));
+            default -> { }
+        }
+        parts.add(node.shortId());
+        Integer hops = node.hops();
+        if (hops != null) parts.add(hops == 0 ? getString(R.string.node_direct) : getString(R.string.node_hops, hops));
+        Float snr = node.snr();
+        if (snr != null) parts.add(getString(R.string.node_snr, String.format(Locale.getDefault(), "%.1f", snr)));
+        parts.add(heardText(node.lastHeardMillis(), now));
+        return String.join(" · ", parts);
+    }
+
+    private String heardText(long when, long now) {
+        if (when <= 0) return getString(R.string.node_heard_unknown);
+        long minutes = Math.max(0, (now - when) / 60_000);
+        if (minutes < 1) return getString(R.string.node_heard_now);
+        if (minutes < 60) return getString(R.string.node_heard_minutes, (int) minutes);
+        long hours = minutes / 60;
+        if (hours < 48) return getString(R.string.node_heard_hours, (int) hours);
+        return getString(R.string.node_heard_days, (int) (hours / 24));
     }
 
     private void beginRadioSelection(Network network) {
@@ -1306,7 +1372,7 @@ public final class MainActivity extends Activity {
 
     private RadioState radioState(Network network) {
         if (service != null) return service.state(network);
-        return new RadioState(null, null, getString(R.string.text_status_offline), false, false, List.of());
+        return new RadioState(null, null, getString(R.string.text_status_offline), false, false, List.of(), List.of());
     }
 
     private String destinationLabel(Destination destination) {

@@ -31,6 +31,10 @@ public final class MeshtasticProtocolTest {
         protocol.onBytes(configComplete);
         check(radio.ready && radio.destinations.size() == 3, "config exposes two channels and one peer");
         check(radio.destinations.get(0).label().equals("LongFast"), "primary preset name");
+        check(radio.nodes.size() == 1 && radio.nodes.get(0).name().equals("Joo")
+                && radio.nodes.get(0).shortId().equals("!00000022"), "node list has the peer, not the own node");
+        check(radio.nodes.get(0).lastHeardMillis() == 0 && radio.nodes.get(0).snr() == null
+                && radio.nodes.get(0).hops() == null, "a node database entry without values reports none");
 
         int beforeWake = radio.reads;
         protocol.onAvailable();
@@ -42,6 +46,17 @@ public final class MeshtasticProtocolTest {
         check(radio.body.equals("Hi") && radio.reply.equals(radio.destinations.get(1)), "channel inbox and reply route");
         check(radio.receivedAt == 100_000L && radio.author.equals("Joo"), "radio time and author");
         check("node:00000022".equals(radio.senderId), "channel message exposes the sender's node ID");
+        check(radio.nodes.get(0).lastHeardMillis() > 1_700_000_000_000L, "a packet marks the node as heard now");
+
+        // Channel text with rx_snr 6.25, hop_limit 1 and hop_start 3.
+        protocol.onBytes(hex("121d0d2200000015ffffffff18012206080112024869450000c84048017803"));
+        check(radio.nodes.get(0).snr() == 6.25f && radio.nodes.get(0).hops() == 2, "packet signal and hops");
+        // Node database entry for node 0x44: snr 10, last heard 1,700,000,000 s, hops_away 2.
+        protocol.onBytes(hex("220e084425000020412d00f153654802"));
+        RadioProtocol.Node far = radio.nodes.stream().filter(n -> n.shortId().equals("!00000044")).findFirst().orElseThrow();
+        check(far.name().equals("!00000044") && far.snr() == 10f && far.hops() == 2
+                && far.lastHeardMillis() == 1_700_000_000_000L, "node database signal, hops and last heard");
+        check(radio.destinations.size() == 3, "a heard node without a user record adds no route");
 
         protocol.onBytes(hex("12170d220000001511000000220608011202444d3d64000000"));
         check(radio.body.equals("DM") && radio.reply.equals(radio.destinations.get(2)), "direct message reply route");
@@ -108,6 +123,7 @@ public final class MeshtasticProtocolTest {
     private static final class SimulatedRadio implements RadioProtocol.Link, RadioProtocol.Events {
         final List<byte[]> writes = new ArrayList<>();
         List<RadioProtocol.Destination> destinations = List.of();
+        List<RadioProtocol.Node> nodes = List.of();
         RadioProtocol.Destination reply;
         int reads;
         boolean ready;
@@ -122,6 +138,7 @@ public final class MeshtasticProtocolTest {
         @Override public void read() { reads++; }
         @Override public void ready() { ready = true; }
         @Override public void destinations(List<RadioProtocol.Destination> values) { destinations = values; }
+        @Override public void nodes(List<RadioProtocol.Node> values) { nodes = values; }
         @Override public void message(RadioProtocol.Destination replyTo, String senderId, String author,
                 String body, long timestampMillis) {
             this.reply = replyTo;

@@ -59,6 +59,8 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private static final int ADVERT_NAME_BYTES = 32;
     private static final int SELF_NAME_OFFSET = 58;
     private static final int CONTACT_NAME_OFFSET = 1 + PUBLIC_KEY_BYTES + 3 + 64;
+    private static final int CONTACT_ADVERT_TIME_OFFSET = CONTACT_NAME_OFFSET + ADVERT_NAME_BYTES;
+    private static final int CONTACT_UPDATED_OFFSET = CONTACT_ADVERT_TIME_OFFSET + 12;
     private static final int MAX_TEXT_BYTES = 160;
     private static final long COMMAND_TIMEOUT_MS = 8_000;
     private static final long POLL_INTERVAL_MS = 30_000;
@@ -77,6 +79,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private final Runnable poll = this::pollMessages;
     private final Map<Integer, Destination> channels = new LinkedHashMap<>();
     private final Map<String, Contact> contacts = new LinkedHashMap<>();
+    private final Map<String, Node> nodes = new LinkedHashMap<>();
     private final Map<Integer, Long> expectedAcks = new HashMap<>();
     private final ArrayDeque<SetupStep> setupSteps = new ArrayDeque<>();
     private MeshCoreSetup.Current radioSetup;
@@ -131,6 +134,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         maxChannelTextBytes = MAX_TEXT_BYTES - ADVERT_NAME_BYTES - 2;
         channels.clear();
         contacts.clear();
+        nodes.clear();
         expectedAcks.clear();
         setupSteps.clear();
         radioSetup = null;
@@ -198,7 +202,9 @@ public final class MeshCoreProtocol implements RadioProtocol {
             case CONTACT_DELETED -> {
                 if (frame.length >= 1 + PUBLIC_KEY_BYTES) {
                     String key = hex(frame, 1, PUBLIC_KEY_BYTES);
-                    if (contacts.remove(key) != null && ready) publishDestinations();
+                    boolean removed = contacts.remove(key) != null;
+                    if (nodes.remove(key) != null) removed = true;
+                    if (removed && ready) publishDestinations();
                 }
             }
             default -> acceptResponse(code, frame);
@@ -451,7 +457,31 @@ public final class MeshCoreProtocol implements RadioProtocol {
         byte[] wirePrefix = new byte[KEY_PREFIX_BYTES];
         System.arraycopy(frame, 1, wirePrefix, 0, KEY_PREFIX_BYTES);
         contacts.put(key, new Contact(destination, prefix, wirePrefix, chat));
+        nodes.put(key, contactNode(frame, key, prefix, destination.label()));
         return true;
+    }
+
+    /**
+     * The contact as a node: its type, the path length the radio keeps for it (-1 = not known yet,
+     * sent by flood) and when the radio last updated it. MeshCore keeps no signal per contact.
+     */
+    static Node contactNode(byte[] frame, String key, String prefix, String name) {
+        int type = unsigned(frame[1 + PUBLIC_KEY_BYTES]);
+        int kind = type >= Node.COMPANION && type <= Node.SENSOR ? type : Node.COMPANION;
+        int pathLength = frame[1 + PUBLIC_KEY_BYTES + 2];
+        Integer hops = pathLength >= 0 && pathLength <= 64 ? pathLength : null;
+        // Prefer when the radio last updated the contact, then the advert's own time; the radio's
+        // clock can be unset, so keep only times that make sense.
+        long millis = contactTime(frame, CONTACT_UPDATED_OFFSET);
+        if (millis == 0) millis = contactTime(frame, CONTACT_ADVERT_TIME_OFFSET);
+        return new Node(key, name, prefix.substring(0, Math.min(8, prefix.length())), kind, millis, null, hops);
+    }
+
+    private static long contactTime(byte[] frame, int offset) {
+        if (frame.length < offset + 4) return 0;
+        long seconds = Integer.toUnsignedLong(readInt(frame, offset));
+        long millis = seconds * 1000L;
+        return seconds < 1_577_836_800L || millis > System.currentTimeMillis() + 86_400_000L ? 0 : millis;
     }
 
     private void publishDestinations() {
@@ -460,6 +490,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
             if (contact.chat() && uniqueContact(contact.prefix()) == contact) items.add(contact.destination());
         }
         events.destinations(List.copyOf(items));
+        events.nodes(List.copyOf(nodes.values()));
     }
 
     private Contact uniqueContact(String prefix) {
