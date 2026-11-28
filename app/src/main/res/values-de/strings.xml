@@ -19,7 +19,12 @@
     <string name="chat_rules_version">Chatregeln • Version %1$d</string>
     <string name="chat_rules_text">Mit dem Akzeptieren dieser Regeln verpflichtest du dich, sie bei der Nutzung von MeshParty einzuhalten.\n\n• Belästige, bedrohe oder ziele nicht mit hasserfüllten oder diskriminierenden Inhalten auf Menschen.\n• Teile keine sexuelle Ausbeutung, kein Missbrauchsmaterial und keine sexuell expliziten Inhalte.\n• Teile keine illegalen Inhalte und nutze die App nicht, um illegale Aktivitäten zu organisieren.\n• Sende keinen Spam, keine Betrugsversuche und keine wiederholten unerwünschten Nachrichten.\n• Teile keine privaten Informationen anderer ohne deren Erlaubnis.\n\nNutze die Optionen einer empfangenen Nachricht, um Missbrauch zu melden. Blockieren und Stummschalten blenden passende Nachrichten und Hinweise in MeshParty auf diesem Telefon aus. Sie wirken sich nicht auf andere Apps oder Funkgeräte aus.</string>
     <string name="chat_rules_accept">Regeln akzeptieren</string>
-    <string name="chat_rules_to_write">Lies die Chatregeln, um eine Nachricht zu schreiben</string>
+    <string name="chat_rules_close">App schließen</string>
+    <string name="whats_new_title">Neu in %1$s</string>
+    <string name="whats_new_button">Neuigkeiten</string>
+    <string name="whats_new_0_2_0">• MeshCore-Funkeinrichtung: Wähle die Voreinstellung deiner Region, benenne dein Funkgerät und kündige es an.\n• MeshParty spricht deine Sprache: 10 Sprachen unter Einstellungen › Sprache.</string>
+    <string name="whats_new_0_2_1">• Die Chatregeln öffnen sich beim Start in einem Fenster. Akzeptiere sie einmal, um MeshParty zu nutzen.\n• MeshParty fragt nach der Benachrichtigungsberechtigung, damit Nachrichtenhinweise sofort funktionieren.\n• Wenn Android-Benachrichtigungen blockiert sind, zeigen die Hinweisschalter in den Einstellungen aus.\n• Die Statuswörter des Funkgeräts folgen der gewählten Sprache.\n• Dieses Fenster mit Neuigkeiten, nach jedem Update und unter Einstellungen › Über MeshParty.</string>
+    <string name="settings_notifications_off">Benachrichtigungen für MeshParty sind aus. Erlaube sie, um Nachrichtenhinweise zu erhalten.</string>
     <string name="chat_rules_required_to_send">Akzeptiere die aktuellen Chatregeln, bevor du eine Nachricht sendest.</string>
     <string name="chat_blocked_destination">Dieser Empfänger ist blockiert. Hebe die Blockierung in den Einstellungen auf, um eine Nachricht zu senden.</string>
     <string name="chat_safety_unavailable">Die Chat-Sicherheitsfunktionen sind vorübergehend nicht verfügbar. Bitte versuche es erneut.</string>

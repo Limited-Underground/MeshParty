@@ -99,10 +99,19 @@ final class ChatModeration {
     }
 
     boolean rulesAccepted() {
-        return preferences.getInt(RULES, 0) == MeshService.CHAT_RULES_VERSION;
+        return rulesAccepted(preferences);
     }
 
     void acceptRules() {
+        acceptRules(preferences);
+    }
+
+    /** Read straight from the settings, so the start-up window does not wait for the radio service. */
+    static boolean rulesAccepted(SharedPreferences preferences) {
+        return preferences.getInt(RULES, 0) == MeshService.CHAT_RULES_VERSION;
+    }
+
+    static void acceptRules(SharedPreferences preferences) {
         preferences.edit().putInt(RULES, MeshService.CHAT_RULES_VERSION).apply();
     }
 

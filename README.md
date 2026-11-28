@@ -4,6 +4,8 @@ MeshParty is a standalone Android app for one Meshtastic radio and one MeshCore 
 
 MeshParty is an independent alternative for using both networks from one screen. It is not intended to replace the official MeshCore or Meshtastic apps. I encourage you to use both official apps. [MeshCore Android app](https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android) · [Meshtastic downloads](https://meshtastic.org/downloads/#apps)
 
+What changed in each version: [CHANGELOG.md](CHANGELOG.md). Released versions: [GitHub releases](https://github.com/Limited-Underground/MeshParty/releases).
+
 ## Try the debug build
 
 1. Use a phone with Android 12 or newer, a Bluetooth-enabled Meshtastic radio, and a radio running MeshCore Bluetooth Companion firmware.

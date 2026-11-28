@@ -19,7 +19,12 @@
     <string name="chat_rules_version">Règles du chat • Version %1$d</string>
     <string name="chat_rules_text">En acceptant ces règles, vous vous engagez à les respecter lorsque vous utilisez MeshParty.\n\n• Ne harcelez pas, ne menacez pas et ne ciblez pas des personnes avec des contenus haineux ou discriminatoires.\n• Ne partagez pas d\'exploitation sexuelle, de contenus d\'abus ni de contenus sexuellement explicites.\n• Ne partagez pas de contenus illégaux et n\'utilisez pas l\'appli pour organiser des activités illégales.\n• N\'envoyez pas de spam, d\'arnaques ni de messages indésirables répétés.\n• Ne partagez pas les informations privées d\'une personne sans son autorisation.\n\nUtilisez les options d\'un message reçu pour signaler un abus. Le blocage et la mise en sourdine masquent les messages et alertes correspondants dans MeshParty sur ce téléphone. Ils n\'ont aucun effet sur d\'autres applis ou radios.</string>
     <string name="chat_rules_accept">Accepter les règles</string>
-    <string name="chat_rules_to_write">Consultez les règles du chat pour écrire un message</string>
+    <string name="chat_rules_close">Fermer l’app</string>
+    <string name="whats_new_title">Nouveautés de la %1$s</string>
+    <string name="whats_new_button">Nouveautés</string>
+    <string name="whats_new_0_2_0">• Configuration radio MeshCore : choisissez le préréglage de votre région, nommez votre radio et annoncez-la.\n• MeshParty parle votre langue : 10 langues dans Paramètres › Langue.</string>
+    <string name="whats_new_0_2_1">• Les règles du chat s’ouvrent dans une fenêtre au démarrage. Acceptez-les une fois pour utiliser MeshParty.\n• MeshParty demande l’autorisation des notifications, pour que les alertes de messages fonctionnent tout de suite.\n• Si les notifications Android sont bloquées, les interrupteurs d’alertes dans Paramètres apparaissent désactivés.\n• L’état de la radio suit la langue choisie.\n• Cette fenêtre Nouveautés, après chaque mise à jour et dans Paramètres › À propos de MeshParty.</string>
+    <string name="settings_notifications_off">Les notifications de MeshParty sont désactivées. Autorisez-les pour recevoir les alertes de messages.</string>
     <string name="chat_rules_required_to_send">Acceptez les règles actuelles du chat avant d\'envoyer un message.</string>
     <string name="chat_blocked_destination">Ce destinataire est bloqué. Débloquez-le dans les Paramètres pour lui envoyer un message.</string>
     <string name="chat_safety_unavailable">Les contrôles de sécurité du chat sont temporairement indisponibles. Veuillez réessayer.</string>
