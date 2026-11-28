@@ -10,6 +10,7 @@ final class WhatsNew {
     record Release(String version, int text) {}
 
     static final List<Release> RELEASES = List.of(
+            new Release("0.2.2", R.string.whats_new_0_2_2),
             new Release("0.2.1", R.string.whats_new_0_2_1),
             new Release("0.2.0", R.string.whats_new_0_2_0));
 

@@ -40,6 +40,8 @@ final class MeshtasticProtocol implements RadioProtocol {
     private final SecureRandom random = new SecureRandom();
     private final Map<Integer, Channel> channels = new TreeMap<>();
     private final Map<Long, Peer> peers = new LinkedHashMap<>();
+    private final Map<Long, Heard> heard = new LinkedHashMap<>();
+    private List<Node> advertisedNodes = List.of();
     private final Map<String, Route> routes = new LinkedHashMap<>();
     private final Map<Long, Route> pending = new LinkedHashMap<>();
     private List<Destination> advertised = List.of();
@@ -101,6 +103,8 @@ final class MeshtasticProtocol implements RadioProtocol {
         regionRules.clear();
         channels.clear();
         peers.clear();
+        heard.clear();
+        advertisedNodes = List.of();
         routes.clear();
         pending.clear();
         advertised = List.of();
@@ -160,6 +164,7 @@ final class MeshtasticProtocol implements RadioProtocol {
                 if (number == ownNode) ownUser = node.binary(2);
                 updatePeer(number, node.message(2), (int) node.number(7), node.number(11) != 0);
             }
+            readNodeInfo(number, node);
         } else if (frame.contains(5)) {
             Proto configuration = frame.message(5);
             if (configuration.contains(6)) updateLora(configuration.binary(6));
@@ -172,6 +177,7 @@ final class MeshtasticProtocol implements RadioProtocol {
             }
             ready = true;
             publishDestinations();
+            publishNodes();
             if (link != null) events.ready();
         } else if (ready && frame.contains(2)) {
             receivePacket(frame.message(2));
@@ -214,7 +220,57 @@ final class MeshtasticProtocol implements RadioProtocol {
         }
         peers.put(number, new Peer(label, channel, ignored || user.number(9) != 0,
                 user.number(6) != 0, publicKey));
-        if (ready) publishDestinations();
+        if (ready) {
+            publishDestinations();
+            publishNodes();
+        }
+    }
+
+    /** Last heard, signal and hops from the radio's node database (NodeInfo fields 4, 5 and 9). */
+    private void readNodeInfo(long number, Proto node) {
+        if (!isNode(number) || number == ownNode) return;
+        long seconds = node.number(5);
+        long now = System.currentTimeMillis();
+        long lastHeard = seconds * 1000L;
+        // The radio's clock can be unset; keep only times that make sense.
+        if (seconds < 1_577_836_800L || lastHeard > now + 86_400_000L) lastHeard = 0;
+        Float snr = node.contains(4) ? Float.intBitsToFloat((int) node.number(4)) : null;
+        Integer hops = node.contains(9) ? (int) Math.min(node.number(9), 255) : null;
+        heard.put(number, new Heard(lastHeard, snr, hops));
+        if (ready) publishNodes();
+    }
+
+    /** Any packet from another node refreshes when it was heard, its signal and its hop count. */
+    private void noteHeard(Proto packet) {
+        long from = packet.number(1);
+        if (!isNode(from) || from == ownNode || ownNode == 0) return;
+        Heard previous = heard.get(from);
+        Float snr = packet.contains(8) ? Float.valueOf(Float.intBitsToFloat((int) packet.number(8)))
+                : previous == null ? null : previous.snr();
+        long start = packet.number(15);
+        long limit = packet.number(9);
+        Integer hops = start > 0 && start >= limit ? Integer.valueOf((int) (start - limit))
+                : previous == null ? null : previous.hops();
+        heard.put(from, new Heard(System.currentTimeMillis(), snr, hops));
+        if (ready) publishNodes();
+    }
+
+    private void publishNodes() {
+        Set<Long> numbers = new java.util.LinkedHashSet<>(peers.keySet());
+        numbers.addAll(heard.keySet());
+        List<Node> nodes = new ArrayList<>(numbers.size());
+        for (long number : numbers) {
+            if (number == ownNode || !isNode(number)) continue;
+            Peer peer = peers.get(number);
+            Heard seen = heard.get(number);
+            nodes.add(new Node(nodeId(number), peer == null ? nodeLabel(number) : peer.name(), nodeLabel(number),
+                    Node.MESHTASTIC, seen == null ? 0 : seen.lastHeardMillis(),
+                    seen == null ? null : seen.snr(), seen == null ? null : seen.hops()));
+        }
+        if (!advertisedNodes.equals(nodes)) {
+            advertisedNodes = List.copyOf(nodes);
+            events.nodes(advertisedNodes);
+        }
     }
 
     private void publishDestinations() {
@@ -251,6 +307,7 @@ final class MeshtasticProtocol implements RadioProtocol {
     }
 
     private void receivePacket(Proto packet) throws MalformedProtobuf {
+        noteHeard(packet);
         if (!packet.contains(4)) return;
         Proto data = packet.message(4);
         long port = data.number(1);
@@ -530,6 +587,7 @@ final class MeshtasticProtocol implements RadioProtocol {
     }
 
     private record Channel(String name, boolean primary) {}
+    private record Heard(long lastHeardMillis, Float snr, Integer hops) {}
     private record Peer(String name, int channel, boolean blocked, boolean licensed, byte[] publicKey) {}
     private record Route(Destination destination, long number, int channel, byte[] publicKey) {}
 
