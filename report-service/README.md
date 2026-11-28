@@ -35,6 +35,37 @@ wrangler deploy --config wrangler.jsonc
 
 Use the actual database name in the migration command if it differs from the example. The Worker serves the report endpoint at `https://<approved-host>/v1/reports` and feedback at `https://<approved-host>/v1/feedback`. Configure the app and publish its matching privacy policies after verifying both endpoints.
 
+## Alerts for new submissions
+
+The service can push a short notice to the owner's phone through [ntfy](https://ntfy.sh) when a new feedback item or abuse report is stored (D-208). The notice names only the type and its fixed category, for example "New feedback: idea" or "New sender report: harassment, meshtastic". It never includes the message text, sender names, sender IDs, receipt IDs or app details, and a retry of an existing submission does not alert again. A failed alert never changes the app's receipt.
+
+1. Install the ntfy app on the phone and subscribe to a long random topic name (it works like a password; anyone who knows it can read the alerts).
+2. Store the topic URL as a Worker secret, then deploy:
+
+   ```sh
+   wrangler secret put ALERT_URL --config wrangler.jsonc   # value: https://ntfy.sh/<your-topic>
+   wrangler deploy --config wrangler.jsonc
+   ```
+
+3. Send one fictional feedback item from a test build and check that the phone shows the alert.
+
+Without `ALERT_URL`, or with a URL that is not `https://`, the service sends no alerts.
+
+## Private review page
+
+`https://<report host>/review` shows the current feedback and abuse reports, newest first, for reading on a phone (D-209). Add it to the phone's home screen to open it like an app. Each alert opens it when `REVIEW_URL` is set.
+
+The page is protected twice. A Cloudflare Access self-hosted application on `<report host>/review` asks for a one-time email code first. The Worker then verifies the Access token (`Cf-Access-Jwt-Assertion`) itself: RS256 signature against the team's keys, issuer, application audience tag, expiry and an allowed email. Without all four settings below, `/review` answers 404.
+
+| Setting (Worker variable) | Value |
+|---|---|
+| `ACCESS_TEAM_DOMAIN` | `https://<team>.cloudflareaccess.com` |
+| `ACCESS_AUD` | The Access application's audience (AUD) tag |
+| `REVIEW_EMAILS` | Comma-separated emails allowed to read, matching the Access policy |
+| `REVIEW_URL` | `https://<report host>/review`, for the alert link |
+
+The page is read-only, uncached and not indexed, and it allows no scripts.
+
 ## Review and retention
 
 Use the authenticated Cloudflare D1 console with access restricted to designated reviewers. The Worker exposes write-only intake endpoints. For the abuse report queue, this query excludes expired rows even if the daily purge is still pending.
