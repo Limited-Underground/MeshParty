@@ -23,6 +23,7 @@ import org.robolectric.Robolectric;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
+import org.robolectric.shadows.ShadowDialog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,6 +88,23 @@ public class LanguageLayoutTest {
         checkDialog(RadioSetupDialog.create(activity, meshtastic, request -> null), "Meshtastic setup");
         MeshCoreSetup.Current meshcore = new MeshCoreSetup.Current(869_618, 62_500, 8, 8, "a1b2c3d4", Boolean.FALSE);
         checkDialog(MeshCoreSetupDialog.create(activity, meshcore, request -> null), "MeshCore setup");
+    }
+
+    @Test
+    public void startupWindowsFit() {
+        // A fresh install opens on the chat rules window (D-205).
+        AlertDialog rules = (AlertDialog) ShadowDialog.getLatestDialog();
+        assertNotNull(qualifier + ": chat rules window at start", rules);
+        assertTrue(qualifier + ": chat rules window showing", rules.isShowing());
+        checkDialog(rules, "chat rules");
+        // What's new from Settings › About lists the 0.2.x releases (D-207).
+        ChatModeration.acceptRules(activity.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE));
+        View root = activity.getWindow().getDecorView();
+        open(root, R.string.tab_settings);
+        open(root, R.string.whats_new_button);
+        AlertDialog news = (AlertDialog) ShadowDialog.getLatestDialog();
+        assertTrue(qualifier + ": What's new opens", news != rules && news.isShowing());
+        checkDialog(news, "what's new");
     }
 
     @Test

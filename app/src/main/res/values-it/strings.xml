@@ -19,7 +19,12 @@
     <string name="chat_rules_version">Regole della chat • Versione %1$d</string>
     <string name="chat_rules_text">Accettando queste regole, ti impegni a rispettarle quando usi MeshParty.\n\n• Non molestare, minacciare o prendere di mira le persone con contenuti d\'odio o discriminatori.\n• Non condividere sfruttamento sessuale, materiale di abuso o contenuti sessualmente espliciti.\n• Non condividere contenuti illegali né usare l\'app per organizzare attività illegali.\n• Non inviare spam, truffe o messaggi indesiderati ripetuti.\n• Non condividere informazioni private di altri senza il loro permesso.\n\nUsa le opzioni di un messaggio ricevuto per segnalare abusi. Bloccare e silenziare nascondono i messaggi e gli avvisi corrispondenti in MeshParty su questo telefono. Non hanno effetto su altre app o radio.</string>
     <string name="chat_rules_accept">Accetta le regole</string>
-    <string name="chat_rules_to_write">Leggi le regole della chat per scrivere un messaggio</string>
+    <string name="chat_rules_close">Chiudi l’app</string>
+    <string name="whats_new_title">Novità della %1$s</string>
+    <string name="whats_new_button">Novità</string>
+    <string name="whats_new_0_2_0">• Configurazione radio MeshCore: scegli il preset della tua regione, dai un nome alla radio e annunciala.\n• MeshParty parla la tua lingua: 10 lingue in Impostazioni › Lingua.</string>
+    <string name="whats_new_0_2_1">• Le regole della chat si aprono in una finestra all’avvio. Accettale una volta per usare MeshParty.\n• MeshParty chiede il permesso per le notifiche, così gli avvisi dei messaggi funzionano subito.\n• Se le notifiche di Android sono bloccate, gli interruttori degli avvisi in Impostazioni risultano spenti.\n• Lo stato della radio segue la lingua che scegli.\n• Questa finestra delle novità, dopo ogni aggiornamento e in Impostazioni › Informazioni su MeshParty.</string>
+    <string name="settings_notifications_off">Le notifiche di MeshParty sono disattivate. Consentile per ricevere gli avvisi dei messaggi.</string>
     <string name="chat_rules_required_to_send">Accetta le regole attuali della chat prima di inviare un messaggio.</string>
     <string name="chat_blocked_destination">Questo destinatario è bloccato. Sbloccalo nelle Impostazioni per inviargli un messaggio.</string>
     <string name="chat_safety_unavailable">I controlli di sicurezza della chat non sono momentaneamente disponibili. Riprova.</string>

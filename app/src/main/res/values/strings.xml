@@ -22,7 +22,13 @@
     <string name="chat_rules_version">Chat rules • Version %1$d</string>
     <string name="chat_rules_text">By accepting these rules, you agree to follow them when using MeshParty.\n\n• Do not harass, threaten, or target people with hateful or discriminatory content.\n• Do not share sexual exploitation, abuse material, or sexually explicit content.\n• Do not share illegal content or use the app to arrange illegal activity.\n• Do not send spam, scams, or repeated unwanted messages.\n• Do not share someone’s private information without their permission.\n\nUse the options on a received message to report abuse. Blocking and muting hide matching messages and alerts in MeshParty on this phone. They have no effect on other apps or radios.</string>
     <string name="chat_rules_accept">Accept rules</string>
-    <string name="chat_rules_to_write">Review chat rules to write a message</string>
+    <string name="chat_rules_close">Close app</string>
+    <string name="whats_new_title">What’s new in %1$s</string>
+    <string name="whats_new_button">What’s new</string>
+    <string name="whats_new_0_2_0">• MeshCore radio setup: pick your region’s preset, name your radio and announce it.\n• MeshParty speaks your language: 10 languages in Settings › Language.</string>
+    <string name="whats_new_0_2_1">• The chat rules open in a window when the app starts. Accept them once to use MeshParty.\n• MeshParty asks for notification permission, so message alerts work right away.\n• When Android notifications are blocked, the alert switches in Settings show off.\n• Radio status words follow the language you choose.\n• This What’s new window, after each update and in Settings › About MeshParty.</string>
+    <string name="settings_notifications_off">Notifications are off for MeshParty. Allow them to get message alerts.</string>
+    <string name="whats_new_version" translatable="false">%1$s</string>
     <string name="chat_rules_required_to_send">Accept the current chat rules before sending a message.</string>
     <string name="chat_blocked_destination">This recipient is blocked. Unblock them in Settings to send a message.</string>
     <string name="chat_safety_unavailable">Chat safety controls are temporarily unavailable. Please try again.</string>

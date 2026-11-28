@@ -19,7 +19,12 @@
     <string name="chat_rules_version">Pravila četa • Verzija %1$d</string>
     <string name="chat_rules_text">Prihvatanjem ovih pravila pristajete da ih poštujete dok koristite MeshParty.\n\n• Ne uznemiravajte, ne pretite i ne napadajte ljude sadržajem mržnje ili diskriminacije.\n• Ne delite seksualnu eksploataciju, materijal zlostavljanja ni seksualno eksplicitan sadržaj.\n• Ne delite nezakonit sadržaj i ne koristite aplikaciju za dogovaranje nezakonitih aktivnosti.\n• Ne šaljite spam, prevare ni ponovljene neželjene poruke.\n• Ne delite tuđe privatne podatke bez njihove dozvole.\n\nZa prijavu zloupotrebe koristite opcije primljene poruke. Blokiranje i isključivanje zvuka skrivaju odgovarajuće poruke i obaveštenja u MeshParty-ju na ovom telefonu. Ne utiču na druge aplikacije ni radio uređaje.</string>
     <string name="chat_rules_accept">Prihvati pravila</string>
-    <string name="chat_rules_to_write">Pročitajte pravila četa da biste napisali poruku</string>
+    <string name="chat_rules_close">Zatvori aplikaciju</string>
+    <string name="whats_new_title">Novo u %1$s</string>
+    <string name="whats_new_button">Novosti</string>
+    <string name="whats_new_0_2_0">• Podešavanje MeshCore radija: izaberi podešavanje za svoj region, daj ime radiju i najavi ga.\n• MeshParty govori tvoj jezik: 10 jezika u Podešavanja › Jezik.</string>
+    <string name="whats_new_0_2_1">• Pravila četa otvaraju se u prozoru pri pokretanju. Prihvati ih jednom da bi koristio MeshParty.\n• MeshParty traži dozvolu za obaveštenja, pa upozorenja o porukama rade odmah.\n• Kada su Android obaveštenja blokirana, prekidači upozorenja u Podešavanjima prikazani su kao isključeni.\n• Stanje radija prati jezik koji izabereš.\n• Ovaj prozor sa novostima, posle svakog ažuriranja i u Podešavanja › O aplikaciji MeshParty.</string>
+    <string name="settings_notifications_off">Obaveštenja za MeshParty su isključena. Dozvoli ih da bi dobijao upozorenja o porukama.</string>
     <string name="chat_rules_required_to_send">Pre slanja poruke prihvatite trenutna pravila četa.</string>
     <string name="chat_blocked_destination">Ovaj primalac je blokiran. Odblokirajte ga u Podešavanjima da biste mu poslali poruku.</string>
     <string name="chat_safety_unavailable">Kontrole bezbednosti četa trenutno nisu dostupne. Pokušajte ponovo.</string>

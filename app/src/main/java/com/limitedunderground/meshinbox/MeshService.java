@@ -31,6 +31,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public final class MeshService extends Service {
     public static final int CHAT_RULES_VERSION = 1;
@@ -112,7 +113,7 @@ public final class MeshService extends Service {
             (prefs, key) -> {
                 if ("reconnect".equals(key) && !prefs.getBoolean("reconnect", true)) {
                     for (Session session : sessions.values()) {
-                        if (session.pendingRetry != null) session.deactivate(Text.t("text_status_offline", "Offline"));
+                        if (session.pendingRetry != null) session.deactivate(() -> Text.t("text_status_offline", "Offline"));
                     }
                     publishRadioState();
                 }
@@ -168,7 +169,7 @@ public final class MeshService extends Service {
                 for (Session session : sessions.values()) {
                     if (session.active) {
                         MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-                        session.deactivate(Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
+                        session.deactivate(() -> Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
                         session.notice = Text.t("text_notice_check_permission", "Open MeshParty and check Nearby devices permission.");
                     }
                 }
@@ -190,7 +191,7 @@ public final class MeshService extends Service {
     @Override
     public void onDestroy() {
         settings.unregisterOnSharedPreferenceChangeListener(preferenceListener);
-        for (Session session : sessions.values()) session.deactivate(Text.t("text_status_offline", "Offline"));
+        for (Session session : sessions.values()) session.deactivate(() -> Text.t("text_status_offline", "Offline"));
         listeners.clear();
         if (foreground) stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
@@ -271,7 +272,7 @@ public final class MeshService extends Service {
         for (RadioProtocol.Destination target : session.destinations) {
             if (!moderation.blocksDestination(network, target)) visible.add(target);
         }
-        return new RadioState(session.name, session.address, session.status, session.active,
+        return new RadioState(session.name, session.address, session.status.get(), session.active,
                 session.ready, List.copyOf(visible));
     }
 
@@ -318,11 +319,11 @@ public final class MeshService extends Service {
             return;
         }
 
-        session.deactivate(Text.t("text_status_offline", "Offline"));
+        session.deactivate(() -> Text.t("text_status_offline", "Offline"));
         session.device = device;
         session.address = address;
         session.name = isBlank(deviceName) ? network.label() : deviceName;
-        session.status = Text.t("text_status_connecting", "Connecting…");
+        session.status = () -> Text.t("text_status_connecting", "Connecting…");
         session.notice = "";
         session.active = true;
         if (foreground) {
@@ -334,7 +335,7 @@ public final class MeshService extends Service {
                 startPending = true;
             } catch (IllegalStateException | SecurityException error) {
                 MeshDiagnostics.record(Event.GATT_SETUP_FAILED, session.radio);
-                session.deactivate(Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
+                session.deactivate(() -> Text.t("text_status_service_unavailable", "Bluetooth service unavailable"));
                 session.notice = Text.t("text_notice_keep_open", "Keep MeshParty open while starting a radio connection.");
             }
         }
@@ -619,7 +620,7 @@ public final class MeshService extends Service {
         private final Radio radio;
         private String name = "";
         private String address = "";
-        private String status = Text.t("text_status_offline", "Offline");
+        private Supplier<String> status = () -> Text.t("text_status_offline", "Offline");
         private String notice = "";
         private boolean active;
         private boolean ready;
@@ -647,14 +648,14 @@ public final class MeshService extends Service {
 
         private void beginConnection() {
             long token = ++generation;
-            status = retryAttempt == 0 ? Text.t("text_status_connecting", "Connecting…") : Text.t("text_status_reconnecting", "Reconnecting…");
+            status = retryAttempt == 0 ? () -> Text.t("text_status_connecting", "Connecting…") : () -> Text.t("text_status_reconnecting", "Reconnecting…");
             protocol = network == Network.MESHTASTIC
                     ? new MeshtasticProtocol() : new MeshCoreProtocol();
             transport = new BleTransport(MeshService.this, protocol, radio, new BleTransport.Listener() {
                 @Override
                 public void onReady() {
                     if (!isCurrent(token)) return;
-                    status = Text.t("text_status_syncing", "Syncing radio…");
+                    status = () -> Text.t("text_status_syncing", "Syncing radio…");
                     MeshDiagnostics.record(Event.PROTOCOL_SYNC_STARTED, radio);
                     pendingSyncTimeout = () -> fail(token, Text.t("text_sync_timeout", "Radio setup timed out."), Event.PROTOCOL_SYNC_TIMEOUT);
                     main.postDelayed(pendingSyncTimeout, SYNC_TIMEOUT_MS);
@@ -705,7 +706,7 @@ public final class MeshService extends Service {
                     ready = true;
                     previouslyReady = true;
                     retryAttempt = 0;
-                    status = Text.t("text_status_connected", "Connected");
+                    status = () -> Text.t("text_status_connected", "Connected");
                     notice = "";
                     if (protocol instanceof MeshtasticProtocol meshtastic && expectedSetup == null) {
                         MeshtasticSetup.Current setup = meshtastic.setupState();
@@ -789,7 +790,7 @@ public final class MeshService extends Service {
             if (previouslyReady && settings.getBoolean("reconnect", true) && hasConnectPermission()
                     && retryAttempt < RECONNECT_SECONDS.length) {
                 int delaySeconds = RECONNECT_SECONDS[retryAttempt++];
-                status = Text.t("text_status_reconnect_in", "Reconnecting in %1$d s", delaySeconds);
+                status = () -> Text.t("text_status_reconnect_in", "Reconnecting in %1$d s", delaySeconds);
                 MeshDiagnostics.record(Event.RECONNECT_SCHEDULED, radio, delaySeconds);
                 pendingRetry = () -> {
                     pendingRetry = null;
@@ -798,7 +799,7 @@ public final class MeshService extends Service {
                 main.postDelayed(pendingRetry, delaySeconds * 1_000L);
             } else {
                 active = false;
-                status = Text.t("text_status_offline", "Offline");
+                status = () -> Text.t("text_status_offline", "Offline");
             }
             publishRadioState();
         }
@@ -810,7 +811,7 @@ public final class MeshService extends Service {
 
         private void disconnectByUser() {
             if (active) MeshDiagnostics.record(Event.USER_DISCONNECT, radio);
-            deactivate(Text.t("text_status_offline", "Offline"));
+            deactivate(() -> Text.t("text_status_offline", "Offline"));
         }
 
         private void checkSetup() {
@@ -849,7 +850,7 @@ public final class MeshService extends Service {
             }
         }
 
-        private void deactivate(String newStatus) {
+        private void deactivate(Supplier<String> newStatus) {
             if (expectedSetup != null || expectedMeshCore != null) finishSetup("");
             active = false;
             previouslyReady = false;

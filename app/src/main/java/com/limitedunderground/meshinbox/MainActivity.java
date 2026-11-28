@@ -114,6 +114,8 @@ public final class MainActivity extends Activity {
     private static final int ENABLE_BLUETOOTH = 2;
     private static final int NOTIFICATION_PERMISSION = 3;
     private static final int EXPORT_DIAGNOSTICS = 4;
+    private static final String WHATS_NEW_SEEN = "whats_new_seen";
+    private static final String NOTIFICATIONS_ASKED = "notifications_asked";
     private static final String ABOUT_MESHTASTIC = "https://meshtastic.org/downloads/#apps";
     private static final String ABOUT_MESHCORE = "https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android";
     private static final DateFormat MESSAGE_DATE = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
@@ -144,6 +146,7 @@ public final class MainActivity extends Activity {
     private AlertDialog reportDialog;
     private AlertDialog feedbackDialog;
     private AlertDialog setupDialog;
+    private AlertDialog startupDialog;
     private Screen screen = Screen.MESSAGES;
     private String filter;
     private String draft = "";
@@ -153,7 +156,6 @@ public final class MainActivity extends Activity {
     private ScrollView feed;
     private LinearLayout radioCards;
     private EditText composer;
-    private Button composerRules;
     private int canvas;
     private int surface;
     private int ink;
@@ -220,6 +222,71 @@ public final class MainActivity extends Activity {
         render();
         MeshDiagnostics.record(MeshDiagnostics.Event.ACTIVITY_READY);
         if (getLastNonConfigurationInstance() instanceof ReportReview review) showReportReview(review);
+        else showStartupWindows();
+    }
+
+    /**
+     * On start: the chat rules until they are accepted (D-205), then the Android notification
+     * prompt once (I-131), then What's new after an update (D-207).
+     */
+    private void showStartupWindows() {
+        if (startupDialog != null || isFinishing()) return;
+        if (!ChatModeration.rulesAccepted(preferences)) {
+            startupDialog = new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.chat_rules_version, MeshService.CHAT_RULES_VERSION))
+                    .setMessage(R.string.chat_rules_text)
+                    .setCancelable(false)
+                    .setNegativeButton(R.string.chat_rules_close, (window, choice) -> finish())
+                    .setPositiveButton(R.string.chat_rules_accept, (window, choice) -> {
+                        if (service != null) service.acceptChatRules();
+                        else ChatModeration.acceptRules(preferences);
+                        // A new install starts on this version, so What's new waits for the next update.
+                        preferences.edit().putString(WHATS_NEW_SEEN, BuildConfig.VERSION_NAME).apply();
+                        if (screen == Screen.MESSAGES) refreshRoutes();
+                    })
+                    .create();
+            startupDialog.setOnDismissListener(closed -> {
+                startupDialog = null;
+                if (ChatModeration.rulesAccepted(preferences)) showStartupWindows();
+            });
+            startupDialog.show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 33 && !preferences.getBoolean(NOTIFICATIONS_ASKED, false)
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            preferences.edit().putBoolean(NOTIFICATIONS_ASKED, true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
+            return;
+        }
+        if (!BuildConfig.VERSION_NAME.equals(preferences.getString(WHATS_NEW_SEEN, ""))) {
+            preferences.edit().putString(WHATS_NEW_SEEN, BuildConfig.VERSION_NAME).apply();
+            showWhatsNew();
+        }
+    }
+
+    /** The changes in this version series (for 0.2.x every 0.2 release), newest first (D-207). */
+    private void showWhatsNew() {
+        if (startupDialog != null) return;
+        String series = series(BuildConfig.VERSION_NAME);
+        StringBuilder text = new StringBuilder();
+        for (WhatsNew.Release release : WhatsNew.RELEASES) {
+            if (!series.equals(series(release.version()))) continue;
+            if (text.length() > 0) text.append("\n\n");
+            text.append(getString(R.string.whats_new_version, release.version())).append('\n')
+                    .append(getString(release.text()));
+        }
+        startupDialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.whats_new_title, series + ".x"))
+                .setMessage(text)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        startupDialog.setOnDismissListener(closed -> startupDialog = null);
+        startupDialog.show();
+    }
+
+    private static String series(String version) {
+        int second = version.indexOf('.', version.indexOf('.') + 1);
+        return second < 0 ? version : version.substring(0, second);
     }
 
     @Override protected void onStart() {
@@ -245,6 +312,10 @@ public final class MainActivity extends Activity {
     @Override protected void onDestroy() {
         if (feedbackDialog != null) feedbackDialog.dismiss();
         if (setupDialog != null) setupDialog.dismiss();
+        if (startupDialog != null) {
+            startupDialog.setOnDismissListener(null);
+            startupDialog.dismiss();
+        }
         if (activeReport != null) activeReport.update = null;
         if (reportDialog != null) {
             reportDialog.setOnDismissListener(null);
@@ -279,7 +350,6 @@ public final class MainActivity extends Activity {
         statuses.clear();
         routes.clear();
         composer = null;
-        composerRules = null;
         LinearLayout header = vertical();
         padding(header, 16, 10, 16, 0);
         root.addView(header);
@@ -392,9 +462,6 @@ public final class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable text) {}
         });
         compose.addView(composer, new LinearLayout.LayoutParams(-1, -2));
-        composerRules = button(getString(R.string.chat_rules_to_write), tint, ink);
-        composerRules.setOnClickListener(view -> showChatRules());
-        compose.addView(composerRules, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout columns = horizontal();
         for (Network network : Network.values()) {
@@ -472,10 +539,6 @@ public final class MainActivity extends Activity {
 
     private void refreshRoutes() {
         boolean canWrite = service != null && service.chatRulesAccepted();
-        if (composer != null && composerRules != null) {
-            composer.setVisibility(canWrite ? View.VISIBLE : View.GONE);
-            composerRules.setVisibility(canWrite ? View.GONE : View.VISIBLE);
-        }
         for (Network network : routes.keySet()) {
             Route controls = routes.get(network);
             RadioState state = radioState(network);
@@ -521,7 +584,7 @@ public final class MainActivity extends Activity {
         String text = draft;
         if (service == null || target == null || text.trim().isEmpty()) return;
         if (!service.chatRulesAccepted()) {
-            showChatRules();
+            showStartupWindows();
             return;
         }
         if (target.destination().channel() && preferences.getBoolean("confirm_channel", false)) {
@@ -644,8 +707,9 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] grants) {
         super.onRequestPermissionsResult(request, permissions, grants);
-        if (request == NOTIFICATION_PERMISSION && screen == Screen.SETTINGS) {
-            render();
+        if (request == NOTIFICATION_PERMISSION) {
+            if (screen == Screen.SETTINGS) render();
+            showStartupWindows();
             return;
         }
         if (request != BLUETOOTH_PERMISSIONS || pendingPicker == null) return;
@@ -693,10 +757,12 @@ public final class MainActivity extends Activity {
             render();
         });
         LinearLayout alerts = settingsGroup(inner, getString(R.string.settings_alerts));
-        addSwitch(alerts, getString(R.string.settings_alerts_network, "Meshtastic"), "alert_meshtastic", true);
-        addSwitch(alerts, getString(R.string.settings_alerts_network, "MeshCore"), "alert_meshcore", true);
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+        boolean notificationsAllowed = Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        addAlertSwitch(alerts, getString(R.string.settings_alerts_network, "Meshtastic"), "alert_meshtastic", notificationsAllowed);
+        addAlertSwitch(alerts, getString(R.string.settings_alerts_network, "MeshCore"), "alert_meshcore", notificationsAllowed);
+        if (!notificationsAllowed) {
+            alerts.addView(label(getString(R.string.settings_notifications_off), 14, ink, false), withTop(3));
             Button permission = button(getString(R.string.settings_allow_notifications), tint, ink);
             permission.setOnClickListener(view -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
                     NOTIFICATION_PERMISSION));
@@ -739,9 +805,12 @@ public final class MainActivity extends Activity {
         about.addView(label(getString(R.string.app_version, BuildConfig.VERSION_NAME),
                 14, ink, true));
         about.addView(label(getString(R.string.independent_app), 14, ink, false), withTop(4));
+        Button whatsNew = button(getString(R.string.whats_new_button), tint, ink);
+        whatsNew.setOnClickListener(view -> showWhatsNew());
+        about.addView(whatsNew, withTop(7));
         Button privacy = button(getString(R.string.privacy_policy), tint, ink);
         privacy.setOnClickListener(view -> showPrivacyPolicy());
-        about.addView(privacy, withTop(7));
+        about.addView(privacy, withTop(4));
         Button meshtastic = button(getString(R.string.official_app, "Meshtastic"), networkFill(Network.MESHTASTIC), networkInk(Network.MESHTASTIC));
         meshtastic.setOnClickListener(view -> openWebsite(ABOUT_MESHTASTIC));
         about.addView(meshtastic, withTop(4));
@@ -1201,6 +1270,17 @@ public final class MainActivity extends Activity {
                     }).setNegativeButton(android.R.string.cancel, null).show();
         });
         group.addView(row, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    /** Without the Android permission the alert switches read off and wait for Allow (I-131). */
+    private void addAlertSwitch(LinearLayout group, String title, String key, boolean allowed) {
+        addSwitch(group, title, key, true);
+        Switch toggle = (Switch) group.getChildAt(group.getChildCount() - 1);
+        if (!allowed) {
+            toggle.setOnCheckedChangeListener(null);
+            toggle.setChecked(false);
+            toggle.setEnabled(false);
+        }
     }
 
     private void addSwitch(LinearLayout group, String title, String key, boolean fallback) {
