@@ -340,6 +340,13 @@
     <string name="send_via">Envoyer via %1$s</string>
     <string name="author_you">Vous</string>
     <string name="send_requested">Envoi demandé</string>
+    <string name="delivery_sending">Envoi…</string>
+    <string name="delivery_sent">Envoyé</string>
+    <string name="delivery_delivered">Distribué ✓</string>
+    <string name="delivery_failed">Non distribué</string>
+    <string name="resend">Renvoyer</string>
+    <string name="resend_description">Renvoyer ce message à %1$s</string>
+    <string name="whats_new_0_2_3">• Les messages envoyés affichent Envoi…, Envoyé, Distribué ✓ ou Non distribué.\n• Renvoyez en un geste un message non distribué.</string>
     <string name="reply">Répondre</string>
     <string name="reply_description">Répondre via %1$s à %2$s</string>
     <string name="no_messages">Aucun message pour l\'instant</string>

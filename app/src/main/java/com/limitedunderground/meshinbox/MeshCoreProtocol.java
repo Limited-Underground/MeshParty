@@ -72,7 +72,8 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private record SetupStep(Operation operation, byte[] frame) {}
 
     private record Contact(Destination destination, String prefix, byte[] wirePrefix, boolean chat) {}
-    private record Outgoing(Destination destination, byte[] text) {}
+    private record Outgoing(Destination destination, byte[] text, long sendId) {}
+    private record AckWait(long expiresAt, long sendId) {}
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable deadline = this::commandTimedOut;
@@ -80,7 +81,10 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private final Map<Integer, Destination> channels = new LinkedHashMap<>();
     private final Map<String, Contact> contacts = new LinkedHashMap<>();
     private final Map<String, Node> nodes = new LinkedHashMap<>();
-    private final Map<Integer, Long> expectedAcks = new HashMap<>();
+    private final Map<Integer, AckWait> expectedAcks = new HashMap<>();
+    private final Runnable ackExpiry = this::removeExpiredAcks;
+    private long nextSendId;
+    private long sendingId;
     private final ArrayDeque<SetupStep> setupSteps = new ArrayDeque<>();
     private MeshCoreSetup.Current radioSetup;
     private Boolean repeat;
@@ -122,6 +126,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
     public void close() {
         handler.removeCallbacks(deadline);
         handler.removeCallbacks(poll);
+        handler.removeCallbacks(ackExpiry);
         link = null;
         events = null;
         operation = null;
@@ -212,7 +217,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
     }
 
     @Override
-    public void send(Destination destination, String text) {
+    public long send(Destination destination, String text) {
         if (!ready) throw new IllegalStateException(Text.t("text_mc_connecting", "The MeshCore radio is still connecting."));
         if (text == null || text.trim().isEmpty() || text.indexOf('\0') >= 0) {
             throw new IllegalArgumentException(Text.t("text_mc_no_null", "Enter a text message without null characters."));
@@ -227,8 +232,10 @@ public final class MeshCoreProtocol implements RadioProtocol {
         if (queuedSend != null || !setupSteps.isEmpty() || (operation != null && operation != Operation.DRAIN)) {
             throw new IllegalStateException(Text.t("text_mc_busy", "MeshCore is still processing a message. Try again shortly."));
         }
-        queuedSend = new Outgoing(destination, bytes);
+        long sendId = ++nextSendId;
+        queuedSend = new Outgoing(destination, bytes, sendId);
         runWork();
+        return sendId;
     }
 
     private void acceptResponse(int code, byte[] frame) {
@@ -283,18 +290,22 @@ public final class MeshCoreProtocol implements RadioProtocol {
                 int ack = readInt(frame, 2);
                 long suggestedTimeout = Integer.toUnsignedLong(readInt(frame, 6));
                 removeExpiredAcks();
+                long sendId = sendingId;
                 if (ack != 0) {
                     long wait = Math.min(MAX_ACK_WAIT_MS, Math.max(1_000, suggestedTimeout));
-                    expectedAcks.put(ack, SystemClock.elapsedRealtime() + wait);
+                    expectedAcks.put(ack, new AckWait(SystemClock.elapsedRealtime() + wait, sendId));
+                    handler.postDelayed(ackExpiry, wait + 500);
                 }
                 finishCommand();
                 events.notice(Text.t("text_mc_direct_accepted", "MeshCore radio accepted the direct message."));
+                events.delivery(sendId, ack != 0 ? SENT : FAILED);
                 runWork();
             }
             case SEND_CHANNEL -> {
                 if (code != OK) return;
                 finishCommand();
                 events.notice(Text.t("text_mc_channel_accepted", "MeshCore radio accepted the channel message."));
+                events.delivery(sendingId, SENT);
                 runWork();
             }
             case SETUP_RADIO, SETUP_NAME -> {
@@ -365,6 +376,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
                 return;
             }
             events.notice(Text.t("text_mc_destination_changed", "MeshCore destination changed before the message could be sent."));
+            events.delivery(outgoing.sendId(), FAILED);
         }
         if (waitingMessages && ready && operation == null) {
             waitingMessages = false;
@@ -373,6 +385,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
     }
 
     private void sendMessage(Outgoing outgoing) {
+        sendingId = outgoing.sendId();
         lastSendTimestamp = Math.max(System.currentTimeMillis() / 1_000, lastSendTimestamp + 1);
         Destination destination = outgoing.destination();
         if (destination.channel()) {
@@ -519,16 +532,23 @@ public final class MeshCoreProtocol implements RadioProtocol {
     private void acknowledge(byte[] frame) {
         if (frame.length < 9) return;
         removeExpiredAcks();
-        if (expectedAcks.remove(readInt(frame, 1)) != null) {
+        AckWait wait = expectedAcks.remove(readInt(frame, 1));
+        if (wait != null) {
             events.notice(Text.t("text_mc_recipient_ack", "The MeshCore recipient acknowledged a direct message."));
+            events.delivery(wait.sendId(), DELIVERED);
         }
     }
 
     private void removeExpiredAcks() {
         long now = SystemClock.elapsedRealtime();
-        Iterator<Long> expiry = expectedAcks.values().iterator();
+        Iterator<AckWait> expiry = expectedAcks.values().iterator();
         while (expiry.hasNext()) {
-            if (expiry.next() < now) expiry.remove();
+            AckWait wait = expiry.next();
+            if (wait.expiresAt() < now) {
+                expiry.remove();
+                // No confirmation within the radio's own estimate: report it so it can be resent.
+                if (events != null) events.delivery(wait.sendId(), FAILED);
+            }
         }
     }
 
@@ -546,6 +566,7 @@ public final class MeshCoreProtocol implements RadioProtocol {
         } else if (operation == Operation.SEND_DIRECT || operation == Operation.SEND_CHANNEL) {
             finishCommand();
             events.notice(Text.t("text_mc_message_rejected", "MeshCore radio rejected the message (error %1$d).", error));
+            events.delivery(sendingId, FAILED);
             runWork();
         } else {
             fail(Text.t("text_mc_command_rejected", "MeshCore radio rejected the %1$s command (error %2$d).", operationLabel(), error));

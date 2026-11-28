@@ -340,6 +340,13 @@
     <string name="send_via">Надіслати через %1$s</string>
     <string name="author_you">Ви</string>
     <string name="send_requested">Надсилання запитано</string>
+    <string name="delivery_sending">Надсилання…</string>
+    <string name="delivery_sent">Надіслано</string>
+    <string name="delivery_delivered">Доставлено ✓</string>
+    <string name="delivery_failed">Не доставлено</string>
+    <string name="resend">Надіслати знову</string>
+    <string name="resend_description">Надіслати це повідомлення в %1$s знову</string>
+    <string name="whats_new_0_2_3">• Біля надісланих повідомлень видно: Надсилання…, Надіслано, Доставлено ✓ або Не доставлено.\n• Недоставлене повідомлення можна надіслати знову одним дотиком.</string>
     <string name="reply">Відповісти</string>
     <string name="reply_description">Відповісти через %1$s для %2$s</string>
     <string name="no_messages">Повідомлень поки немає</string>

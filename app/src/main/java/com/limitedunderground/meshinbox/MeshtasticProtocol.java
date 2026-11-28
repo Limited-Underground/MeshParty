@@ -30,6 +30,7 @@ final class MeshtasticProtocol implements RadioProtocol {
     private static final int ADMIN = 6;
     private static final int LORA_CONFIG_TYPE = 5;
     private static final int ADMIN_BAD_SESSION_KEY = 36;
+    private static final int MAX_RETRANSMIT = 5;
     // Leave space for protobuf and public-key encryption overhead on the air.
     private static final int TEXT_LIMIT = 200;
     private static final byte[] EMPTY_PUBLIC_KEY = new byte[32];
@@ -183,8 +184,12 @@ final class MeshtasticProtocol implements RadioProtocol {
             receivePacket(frame.message(2));
         } else if (ready && frame.contains(11)) {
             Proto queue = frame.message(11);
-            if (queue.number(1) != 0 && pending.remove(queue.number(4)) != null) {
+            long packetId = queue.number(4);
+            if (queue.number(1) != 0 && pending.remove(packetId) != null) {
                 events.notice(Text.t("text_mt_queue_rejected", "The Meshtastic radio rejected a queued message."));
+                events.delivery(packetId, FAILED);
+            } else if (queue.number(1) == 0 && pending.containsKey(packetId)) {
+                events.delivery(packetId, SENT);
             }
         }
     }
@@ -375,16 +380,28 @@ final class MeshtasticProtocol implements RadioProtocol {
         Proto routing = Proto.parse(data.binary(2));
         if (!routing.contains(3)) return;
         long error = routing.number(3);
-        if (error == 0 && route.number() != BROADCAST && from != route.number()) return;
+        if (error == 0 && route.number() != BROADCAST && from != route.number()) {
+            // An implicit acknowledgement: a neighbour relayed the direct message. Keep waiting
+            // for the recipient's own acknowledgement.
+            events.delivery(requestId, SENT);
+            return;
+        }
         pending.remove(requestId);
-        if (error != 0) {
+        if (error == MAX_RETRANSMIT && route.number() == BROADCAST) {
+            // The channel message went out, but no relay was heard. That is not a failure.
+            events.delivery(requestId, SENT);
+        } else if (error != 0) {
             events.notice(Text.t("text_mt_send_failed", "Meshtastic reported a send failure (routing code %1$d).", error));
+            events.delivery(requestId, FAILED);
         } else if (route.number() == BROADCAST) {
             events.notice(Text.t("text_mt_relay_ack", "Meshtastic reported a channel relay acknowledgement."));
+            events.delivery(requestId, SENT);
         } else if (proof == 1) {
             events.notice(Text.t("text_mt_verified_ack", "Meshtastic verified the recipient's acknowledgement."));
+            events.delivery(requestId, DELIVERED);
         } else {
             events.notice(Text.t("text_mt_ack", "Meshtastic reported an acknowledgement."));
+            events.delivery(requestId, DELIVERED);
         }
     }
 
@@ -537,7 +554,7 @@ final class MeshtasticProtocol implements RadioProtocol {
     }
 
     @Override
-    public void send(Destination destination, String text) {
+    public long send(Destination destination, String text) {
         if (!ready || link == null) throw new IllegalStateException(Text.t("text_mt_not_connected", "Meshtastic is not connected."));
         Route route = destination == null ? null : routes.get(destination.id());
         if (route == null || !route.destination().equals(destination)) {
@@ -562,6 +579,7 @@ final class MeshtasticProtocol implements RadioProtocol {
         link.write(new ProtoWriter().binaryField(1, packet.bytes()).bytes());
         if (pending.size() >= 64) pending.remove(pending.keySet().iterator().next());
         pending.put(id, route);
+        return id;
     }
 
     private static boolean isNode(long number) {

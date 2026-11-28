@@ -340,6 +340,13 @@
     <string name="send_via">Enviar por %1$s</string>
     <string name="author_you">Tú</string>
     <string name="send_requested">Envío solicitado</string>
+    <string name="delivery_sending">Enviando…</string>
+    <string name="delivery_sent">Enviado</string>
+    <string name="delivery_delivered">Entregado ✓</string>
+    <string name="delivery_failed">No entregado</string>
+    <string name="resend">Reenviar</string>
+    <string name="resend_description">Enviar de nuevo este mensaje a %1$s</string>
+    <string name="whats_new_0_2_3">• Los mensajes enviados muestran Enviando…, Enviado, Entregado ✓ o No entregado.\n• Reenvía con un toque un mensaje que no se entregó.</string>
     <string name="reply">Responder</string>
     <string name="reply_description">Responder por %1$s a %2$s</string>
     <string name="no_messages">Aún no hay mensajes</string>

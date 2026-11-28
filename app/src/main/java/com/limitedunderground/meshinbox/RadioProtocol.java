@@ -14,7 +14,17 @@ public interface RadioProtocol {
     void onBytes(byte[] bytes);
     void onAvailable();
     void close();
-    void send(Destination destination, String text);
+    /** Queues a text message and returns an ID that later delivery() events refer to. */
+    long send(Destination destination, String text);
+
+    /** Delivery of a sent message, from first to final (0.2.3). */
+    int SENDING = 0;
+    /** The radio took the message; for a channel this is final (or a relay was heard). */
+    int SENT = 1;
+    /** The recipient confirmed a direct message. */
+    int DELIVERED = 2;
+    /** The radio refused it or no confirmation came. */
+    int FAILED = 3;
 
     record Destination(String id, String label, boolean channel) {}
 
@@ -46,6 +56,8 @@ public interface RadioProtocol {
                      long timestampMillis);
         void notice(String information);
         void failed(String information);
+        /** A sent message moved on: SENT, DELIVERED or FAILED. */
+        default void delivery(long sendId, int state) {}
         /** The nodes this radio knows about, replacing the previous list. */
         default void nodes(List<Node> nodes) {}
         /** The radio reported new setup values (region, preset or names). */

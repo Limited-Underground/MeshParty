@@ -351,6 +351,13 @@
     <string name="send_via">Send via %1$s</string>
     <string name="author_you">You</string>
     <string name="send_requested">Send requested</string>
+    <string name="delivery_sending">Sending…</string>
+    <string name="delivery_sent">Sent</string>
+    <string name="delivery_delivered">Delivered ✓</string>
+    <string name="delivery_failed">Not delivered</string>
+    <string name="resend">Resend</string>
+    <string name="resend_description">Send this message to %1$s again</string>
+    <string name="whats_new_0_2_3">• Sent messages show Sending…, Sent, Delivered ✓ or Not delivered.\n• Resend a message that was not delivered with one tap.</string>
     <string name="reply">Reply</string>
     <string name="reply_description">Reply via %1$s to %2$s</string>
     <string name="no_messages">No messages yet</string>

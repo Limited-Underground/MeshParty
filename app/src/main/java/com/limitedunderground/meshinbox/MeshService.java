@@ -28,8 +28,10 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -64,7 +66,20 @@ public final class MeshService extends Service {
 
     public record Message(long id, Network network, RadioProtocol.Destination replyTo,
                           String author, String body, long timestampMillis, boolean outgoing,
-                          String radioAddress, String senderId) {
+                          String radioAddress, String senderId, int delivery) {
+        /** Delivery is not known: an incoming message, or one saved before 0.2.3. */
+        public static final int UNKNOWN = -1;
+
+        Message withDelivery(int state) {
+            return new Message(id, network, replyTo, author, body, timestampMillis, outgoing, radioAddress,
+                    senderId, state);
+        }
+
+        /** A message that was not confirmed can be sent again. */
+        public boolean canResend() {
+            return outgoing && delivery == RadioProtocol.FAILED && replyTo != null;
+        }
+
         public boolean canBlockSender() {
             return !outgoing && senderId != null;
         }
@@ -104,6 +119,8 @@ public final class MeshService extends Service {
     private static final int[] RECONNECT_SECONDS = {1, 2, 4, 8, 16};
     private static final long SETUP_CONFIRM_TIMEOUT_MS = 120_000;
     private static final long SETUP_READBACK_DELAY_MS = 4_000;
+    // Longer than Meshtastic's retries and MeshCore's own acknowledgement wait.
+    private static final long DELIVERY_TIMEOUT_MS = 180_000;
 
     private final LocalBinder binder = new LocalBinder();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -371,16 +388,82 @@ public final class MeshService extends Service {
 
         long generation = session.generation;
         String address = session.address;
+        long sendId;
         try {
-            session.protocol.send(current, body);
+            sendId = session.protocol.send(current, body);
         } catch (IllegalArgumentException | IllegalStateException error) {
             return session.rejectSend(error.getMessage() == null ? Text.t("text_could_not_queue", "The radio could not queue this message.")
                     : error.getMessage());
         }
         if (generation != session.generation) return session.rejectSend(Text.t("text_disconnected_during_send", "The radio disconnected during send."));
         MeshDiagnostics.record(Event.SEND_QUEUED, session.radio);
-        appendMessage(network, current, null, "You", body, System.currentTimeMillis(), true, address);
+        Message sent = appendMessage(network, current, null, "You", body, System.currentTimeMillis(), true, address,
+                RadioProtocol.SENDING);
+        if (sent != null) {
+            session.deliveries.put(sendId, sent.id());
+            main.postDelayed(() -> deliveryTimedOut(session, sendId), DELIVERY_TIMEOUT_MS);
+        }
         return null;
+    }
+
+    /** Sends a message that was not delivered again; the new copy replaces it (0.2.3). */
+    public String resend(long messageId) {
+        Message failed = findMessage(messageId);
+        if (failed == null || !failed.canResend()) {
+            return Text.t("text_could_not_queue", "The radio could not queue this message.");
+        }
+        String error = send(failed.network(), failed.replyTo(), failed.body());
+        if (error == null) {
+            history.removeIf(message -> message.id() == messageId);
+            saveHistory();
+            publish();
+        }
+        return error;
+    }
+
+    private Message findMessage(long messageId) {
+        for (Message message : history) {
+            if (message.id() == messageId) return message;
+        }
+        return null;
+    }
+
+    /** Moves a sent message forward: SENDING, then SENT, then DELIVERED or FAILED. */
+    private void updateDelivery(long messageId, int state) {
+        for (int index = 0; index < history.size(); index++) {
+            Message message = history.get(index);
+            if (message.id() != messageId) continue;
+            int current = message.delivery();
+            boolean open = current == RadioProtocol.SENDING || current == RadioProtocol.SENT;
+            if (!open || state == current || state == RadioProtocol.SENDING) return;
+            history.set(index, message.withDelivery(state));
+            saveHistory();
+            publish();
+            return;
+        }
+    }
+
+    private static boolean isChannel(Message message) {
+        return message.replyTo() != null && message.replyTo().channel();
+    }
+
+    private static boolean deliveryFinal(Message message, int state) {
+        return state == RadioProtocol.DELIVERED || state == RadioProtocol.FAILED
+                || (isChannel(message) && state == RadioProtocol.SENT);
+    }
+
+    /** Nothing more will arrive: a channel message the radio took counts as sent, the rest failed. */
+    private void settleDelivery(long messageId) {
+        Message message = findMessage(messageId);
+        if (message == null) return;
+        if (!(isChannel(message) && message.delivery() == RadioProtocol.SENT)) {
+            updateDelivery(messageId, RadioProtocol.FAILED);
+        }
+    }
+
+    private void deliveryTimedOut(Session session, long sendId) {
+        Long messageId = session.deliveries.remove(sendId);
+        if (messageId != null) settleDelivery(messageId);
     }
 
     /** The Meshtastic radio's setup values, or null when it is not connected and synced. */
@@ -541,19 +624,20 @@ public final class MeshService extends Service {
         if (network == Network.MESHCORE) lastMeshCoreAlert = message;
     }
 
-    private void appendMessage(Network network, RadioProtocol.Destination replyTo, String senderId,
-                               String author, String body, long timestampMillis, boolean outgoing,
-                               String radioAddress) {
+    private Message appendMessage(Network network, RadioProtocol.Destination replyTo, String senderId,
+                                  String author, String body, long timestampMillis, boolean outgoing,
+                                  String radioAddress, int delivery) {
         String id = ChatModeration.senderId(network, senderId);
-        if (!outgoing && moderation.hidesIncoming(network, id, replyTo, radioAddress, author)) return;
+        if (!outgoing && moderation.hidesIncoming(network, id, replyTo, radioAddress, author)) return null;
         long timestamp = timestampMillis > 0 ? timestampMillis : System.currentTimeMillis();
         Message message = new Message(nextMessageId++, network, replyTo, author, body, timestamp,
-                outgoing, radioAddress, id);
+                outgoing, radioAddress, id, delivery);
         history.add(message);
         if (history.size() > HISTORY_LIMIT) history.remove(0);
         saveHistory();
         if (!outgoing) notifyMessage(message);
         publish();
+        return message;
     }
 
     private void loadHistory() {
@@ -576,10 +660,16 @@ public final class MeshService extends Service {
                     if (!outgoing && !record.has("senderId")) {
                         sender = ChatModeration.directSenderId(network, reply);
                     }
+                    int delivery = outgoing ? record.optInt("delivery", Message.UNKNOWN) : Message.UNKNOWN;
+                    boolean channel = reply != null && reply.channel();
+                    // Nothing tracks a send across an app restart: settle what was still open.
+                    if (delivery == RadioProtocol.SENDING || (delivery == RadioProtocol.SENT && !channel)) {
+                        delivery = RadioProtocol.FAILED;
+                    }
                     history.add(new Message(id, network, reply,
                             record.getString("author"), record.getString("body"),
                             record.getLong("time"), outgoing,
-                            record.optString("radioAddress", null), sender));
+                            record.optString("radioAddress", null), sender, delivery));
                     nextMessageId = Math.max(nextMessageId, id + 1);
                 } catch (JSONException | IllegalArgumentException malformedRecord) {
                     // Keep any other readable messages.
@@ -601,6 +691,7 @@ public final class MeshService extends Service {
                         .put("body", message.body())
                         .put("time", message.timestampMillis())
                         .put("outgoing", message.outgoing())
+                        .put("delivery", message.delivery())
                         .put("radioAddress", message.radioAddress())
                         .put("senderId", message.senderId() == null ? JSONObject.NULL : message.senderId());
                 RadioProtocol.Destination reply = message.replyTo();
@@ -639,6 +730,8 @@ public final class MeshService extends Service {
         private MeshCoreSetup.Request expectedMeshCore;
         private List<RadioProtocol.Destination> destinations = List.of();
         private List<RadioProtocol.Node> nodes = List.of();
+        /** Send ID from the protocol to the message it belongs to, until delivery is final. */
+        private final Map<Long, Long> deliveries = new HashMap<>();
 
         Session(Network network) {
             this.network = network;
@@ -721,6 +814,16 @@ public final class MeshService extends Service {
                 }
 
                 @Override
+                public void delivery(long sendId, int state) {
+                    if (!isCurrent(token)) return;
+                    Long messageId = deliveries.get(sendId);
+                    if (messageId == null) return;
+                    Message message = findMessage(messageId);
+                    if (message == null || deliveryFinal(message, state)) deliveries.remove(sendId);
+                    if (message != null) updateDelivery(messageId, state);
+                }
+
+                @Override
                 public void destinations(List<RadioProtocol.Destination> available) {
                     if (!isCurrent(token)) return;
                     destinations = List.copyOf(available);
@@ -738,7 +841,8 @@ public final class MeshService extends Service {
                 public void message(RadioProtocol.Destination replyTo, String senderId, String author,
                                     String body, long timestampMillis) {
                     if (!isCurrent(token)) return;
-                    appendMessage(network, replyTo, senderId, author, body, timestampMillis, false, address);
+                    appendMessage(network, replyTo, senderId, author, body, timestampMillis, false, address,
+                            Message.UNKNOWN);
                 }
 
                 @Override
@@ -878,6 +982,9 @@ public final class MeshService extends Service {
             ready = false;
             destinations = List.of();
             nodes = List.of();
+            // The link is gone: nothing more will arrive for messages still waiting.
+            for (Long messageId : List.copyOf(deliveries.values())) settleDelivery(messageId);
+            deliveries.clear();
             if (protocol != null) protocol.close();
             if (transport != null) transport.disconnect();
             protocol = null;

@@ -340,6 +340,13 @@
     <string name="send_via">Über %1$s senden</string>
     <string name="author_you">Du</string>
     <string name="send_requested">Senden angefordert</string>
+    <string name="delivery_sending">Wird gesendet…</string>
+    <string name="delivery_sent">Gesendet</string>
+    <string name="delivery_delivered">Zugestellt ✓</string>
+    <string name="delivery_failed">Nicht zugestellt</string>
+    <string name="resend">Erneut senden</string>
+    <string name="resend_description">Diese Nachricht erneut an %1$s senden</string>
+    <string name="whats_new_0_2_3">• Gesendete Nachrichten zeigen Wird gesendet…, Gesendet, Zugestellt ✓ oder Nicht zugestellt.\n• Eine nicht zugestellte Nachricht mit einem Tippen erneut senden.</string>
     <string name="reply">Antworten</string>
     <string name="reply_description">Über %1$s an %2$s antworten</string>
     <string name="no_messages">Noch keine Nachrichten</string>
