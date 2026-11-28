@@ -51,6 +51,21 @@ The service can push a short notice to the owner's phone through [ntfy](https://
 
 Without `ALERT_URL`, or with a URL that is not `https://`, the service sends no alerts.
 
+## Private review page
+
+`https://<report host>/review` shows the current feedback and abuse reports, newest first, for reading on a phone (D-209). Add it to the phone's home screen to open it like an app. Each alert opens it when `REVIEW_URL` is set.
+
+The page is protected twice. A Cloudflare Access self-hosted application on `<report host>/review` asks for a one-time email code first. The Worker then verifies the Access token (`Cf-Access-Jwt-Assertion`) itself: RS256 signature against the team's keys, issuer, application audience tag, expiry and an allowed email. Without all four settings below, `/review` answers 404.
+
+| Setting (Worker variable) | Value |
+|---|---|
+| `ACCESS_TEAM_DOMAIN` | `https://<team>.cloudflareaccess.com` |
+| `ACCESS_AUD` | The Access application's audience (AUD) tag |
+| `REVIEW_EMAILS` | Comma-separated emails allowed to read, matching the Access policy |
+| `REVIEW_URL` | `https://<report host>/review`, for the alert link |
+
+The page is read-only, uncached and not indexed, and it allows no scripts.
+
 ## Review and retention
 
 Use the authenticated Cloudflare D1 console with access restricted to designated reviewers. The Worker exposes write-only intake endpoints. For the abuse report queue, this query excludes expired rows even if the daily purge is still pending.

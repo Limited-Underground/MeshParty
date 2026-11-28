@@ -1,3 +1,5 @@
+import { handleReview } from "./review.mjs";
+
 const MAX_REPORT_REQUEST_BYTES = 8_192;
 // Allow 2,000 message units and four 128-unit detail strings even as JSON escapes.
 const MAX_FEEDBACK_REQUEST_BYTES = 16_384;
@@ -37,10 +39,18 @@ const selectFeedback =
 
 export default {
   async fetch(request, env, ctx) {
+    if (new URL(request.url).pathname === "/review") {
+      try {
+        return await handleReview(request, env);
+      } catch {
+        return empty(503);
+      }
+    }
     const response = await handle(request, env);
     // A new submission (201, not a retry) sends the owner a push without its content (D-208).
     if (response.status === 201 && response.alert) {
-      const sent = sendAlert(env.ALERT_URL, response.alert);
+      const review = typeof env.REVIEW_URL === "string" && env.REVIEW_URL.startsWith("https://") ? env.REVIEW_URL : null;
+      const sent = sendAlert(env.ALERT_URL, { ...response.alert, click: review });
       if (ctx?.waitUntil) ctx.waitUntil(sent); else await sent;
     }
     return response;
@@ -68,7 +78,11 @@ async function sendAlert(alertUrl, alert) {
   try {
     await fetch(alertUrl, {
       method: "POST",
-      headers: { Title: alert.title, Tags: alert.tags, Priority: "default" },
+      headers: {
+        Title: alert.title, Tags: alert.tags, Priority: "default",
+        // Tapping the alert opens the private review page when it is configured (D-209).
+        ...(alert.click ? { Click: alert.click } : {}),
+      },
       body: alert.body,
     });
   } catch {
